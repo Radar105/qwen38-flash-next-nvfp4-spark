@@ -6,11 +6,25 @@
 DGX Spark class GB10 system. Original NVIDIA weights, with documented vLLM
 patches. This is a tested local configuration, not an unmodified upstream recipe.
 
-## Copyable vLLM launch command
+## Set up with your agent
 
-After [setup and weight download](docs/SETUP.md), copy the script below into a
-dedicated terminal or tmux session. Stop the previous engine first. Change
-`QWEN_SETUP_ROOT` only if you installed outside `$HOME/qwen38-spark`.
+Paste this repository link into your coding agent:
+
+```text
+https://github.com/Radar105/qwen38-flash-next-nvfp4-spark
+```
+
+Ask it to read `AGENTS.md` and `docs/SETUP.md`, inspect your DGX, and adapt the
+setup to your machine. It should resolve your CUDA installation, Python
+environment, model and cache paths, available memory, ports and existing
+services before building or launching. Have it apply the documented patches,
+download the pinned weights, then verify model responses and prefix-cache reuse.
+
+## vLLM configuration reference
+
+The script below shows the tested settings and the repository's example
+installation layout. Its paths must be checked and fitted to your system by
+you or your agent before use. The full setup workflow is in [docs/SETUP.md](docs/SETUP.md).
 
 ```bash
 #!/usr/bin/env bash
@@ -48,11 +62,7 @@ exec "$setup_root/venv"/bin/vllm serve \
 
 The launch uses 262144 context, MTP2, BF16 KV 8GiB and prefix caching with
 align/retention1600. The model-card output ceiling is 131072 tokens, bounded
-by remaining context. For the supplied script, the short launch is:
-
-```bash
-bash scripts/serve.sh
-```
+by remaining context.
 
 ## Measured speeds
 

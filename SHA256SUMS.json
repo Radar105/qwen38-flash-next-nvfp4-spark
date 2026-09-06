@@ -4,8 +4,8 @@
     "bytes": 2864
   },
   "AGENTS.md": {
-    "sha256": "f14e4a712f302a492ee24ef6ec0285408d67fe663ef611875030b9c6af9e300c",
-    "bytes": 1887
+    "sha256": "8462726548f3325ec80ef209adc3e22b70130bcd0dd8fe35854411d63ad29a7f",
+    "bytes": 2282
   },
   "NOTICE": {
     "sha256": "754b6aa4b4a98aded29a58068ff4354703aea9cb5b3320d0bf187c7a86c3d00f",
@@ -24,16 +24,16 @@
     "bytes": 89
   },
   "CLAUDE.md": {
-    "sha256": "a79f930dcf7ca267fa4ff7061b3286a06c9d51f9b320e7ab5ee322fe90243a7b",
-    "bytes": 595
+    "sha256": "842e13697b4e82003573d00464a5b9ade95e233bf4116cbc4f3ea5c0f07ddb37",
+    "bytes": 990
   },
   "AGENT.md": {
     "sha256": "cb6fca7b7e94b59c919d35ceb464ee434d3ed45478319ac26cb609a7909c9c93",
     "bytes": 418
   },
   "README.md": {
-    "sha256": "a1d51d331d5fc39ee2565ddb090dffc5e75e87961d82616b32e0e80fcdeacfb0",
-    "bytes": 8154
+    "sha256": "6b2ff8ed4998412b3012edc88e8d0ddeba5e147740b397d07414eeebc6cffad9",
+    "bytes": 8623
   },
   "patches/patched-source-sha256.json": {
     "sha256": "fcf44e3570a9e3a27b855c76471f686c977d982d7d65bffd53c4924e7c7a54d9",

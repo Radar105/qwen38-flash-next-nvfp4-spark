@@ -29,3 +29,11 @@ option takes longer. Artifacts are written to a new directory, not over old runs
 
 Publishing this repo does not authorize social media posting or changing
 unrelated services. Model weights have their own license and are not included.
+
+## Adapt to the target machine
+
+Treat the README launch script as a configuration reference. Inspect the host
+and resolve CUDA, environment, model and cache paths, memory, port ownership
+and existing services before executing setup or launch commands. The example
+paths are not evidence that the target machine is prepared. Read docs/SETUP.md
+and preserve unrelated installations and services.
