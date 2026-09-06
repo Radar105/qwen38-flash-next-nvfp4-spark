@@ -1,0 +1,15 @@
+{
+  "model": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+  "messages": [
+    {
+      "role": "user",
+      "content": "What is 17 times 19? Give the result."
+    }
+  ],
+  "temperature": 0,
+  "max_tokens": 1024,
+  "chat_template_kwargs": {
+    "enable_thinking": true,
+    "reasoning_effort": "medium"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "baseline": {
+    "phase": {
+      "counter_isolation": true,
+      "prefill_seconds": 21.024469984986354,
+      "prefill_tps": 2266.0737718488044,
+      "decode_seconds": 172.46401843399508,
+      "decode_tps": 16.536782720805668
+    },
+    "usage": {
+      "prompt_tokens": 47643,
+      "total_tokens": 50496,
+      "completion_tokens": 2853,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": {
+        "reasoning_tokens": 1053
+      }
+    }
+  },
+  "mtp2": {
+    "phase": {
+      "counter_isolation": true,
+      "prefill_seconds": 25.571314666012768,
+      "prefill_tps": 1863.1423773969295,
+      "decode_seconds": 109.43613922502846,
+      "decode_tps": 26.828431821437334
+    },
+    "usage": {
+      "prompt_tokens": 47643,
+      "total_tokens": 50580,
+      "completion_tokens": 2937,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": {
+        "reasoning_tokens": 1166
+      }
+    }
+  },
+  "long_context": [
+    {
+      "test": "Raw ledger / revisions + arithmetic",
+      "source": "raw-262k-ledger-192000.json",
+      "input_tokens": 191978,
+      "completion_tokens": 370,
+      "seconds": 110.21397857897682,
+      "pass": true
+    },
+    {
+      "test": "Raw ledger / revisions + arithmetic",
+      "source": "raw-262k-ledger-250000.json",
+      "input_tokens": 249978,
+      "completion_tokens": 760,
+      "seconds": 151.83362548804143,
+      "pass": true
+    },
+    {
+      "test": "Raw three-needle retrieval",
+      "source": "raw-262k-thinking-boundary.json",
+      "input_tokens": 260834,
+      "completion_tokens": 210,
+      "seconds": 162.1915363370208,
+      "pass": true
+    },
+    {
+      "test": "Managed three-needle retrieval",
+      "source": "production-262k-thinking-boundary.json",
+      "input_tokens": 260834,
+      "completion_tokens": 210,
+      "seconds": 166.88712568901246,
+      "pass": true
+    }
+  ],
+  "memory_snapshot": {
+    "total_gib": 121.6,
+    "used_gib": 119.1,
+    "engine_gib": 112.0,
+    "swap_percent": 20.6
+  },
+  "template": "S25+ FrankenGPT_01_Decode_49K.png and FrankenGPT_03_Command_and_Story.png; 4:24am file not identified"
+}

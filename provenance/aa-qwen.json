@@ -1,0 +1,87 @@
+{
+  "retrieved_at": "2026-09-06T00:01:30.981264+00:00",
+  "source": "Artificial Analysis authenticated API",
+  "current_api": {
+    "endpoint": "https://artificialanalysis.ai/api/v2/language/models/free",
+    "tier": "free",
+    "intelligence_index_version": 4.2,
+    "row_count": 643
+  },
+  "legacy_api": {
+    "endpoint": "https://artificialanalysis.ai/api/v2/data/llms/models",
+    "row_count": 643
+  },
+  "result": {
+    "query": "Qwen3.8-Flash-Next",
+    "replication_status": "current",
+    "current_matches": [
+      {
+        "name": "Qwen3.8-Flash-Next",
+        "slug": "qwen3-8-flash-next",
+        "release_date": "2026-08-26",
+        "creator": "Alibaba",
+        "evaluations": {
+          "artificial_analysis_intelligence_index": 45.6,
+          "artificial_analysis_coding_index": 73.1,
+          "artificial_analysis_agentic_index": null
+        },
+        "pricing": {
+          "price_1m_input_tokens": 0.15,
+          "price_1m_output_tokens": 0.47,
+          "price_1m_cache_hit_tokens": 0.02,
+          "price_1m_cache_write_tokens": null
+        },
+        "performance": {
+          "median_output_tokens_per_second": 65.96,
+          "median_time_to_first_token_seconds": 2.68,
+          "median_time_to_first_answer_token_seconds": 33,
+          "median_end_to_end_response_time_seconds": 40.58
+        },
+        "huggingface_url": null,
+        "context_window_tokens": null,
+        "parameters": null,
+        "modalities": null
+      }
+    ],
+    "legacy_matches": [
+      {
+        "name": "Qwen3.8-Flash-Next",
+        "slug": "qwen3-8-flash-next",
+        "release_date": "2026-08-26",
+        "creator": "Alibaba",
+        "evaluations": {
+          "artificial_analysis_intelligence_index": 45.6,
+          "artificial_analysis_coding_index": 73.1,
+          "artificial_analysis_math_index": null,
+          "mmlu_pro": null,
+          "gpqa": 0.923,
+          "hle": 0.38,
+          "livecodebench": null,
+          "scicode": 0.506,
+          "math_500": null,
+          "aime": null,
+          "aime_25": null,
+          "ifbench": null,
+          "lcr": 0.796666666666667,
+          "terminalbench_hard": null,
+          "terminalbench_v2_1": 0.861423220973783,
+          "tau2": null,
+          "tau_banking": 0.45360824742268
+        },
+        "pricing": {
+          "price_1m_blended_3_to_1": 0.23,
+          "price_1m_input_tokens": 0.15,
+          "price_1m_output_tokens": 0.47
+        },
+        "performance": {
+          "median_output_tokens_per_second": 73.944,
+          "median_time_to_first_token_seconds": 1.302
+        },
+        "huggingface_url": null,
+        "context_window_tokens": null,
+        "parameters": null,
+        "modalities": null
+      }
+    ]
+  }
+}

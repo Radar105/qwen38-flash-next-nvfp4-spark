@@ -1,0 +1,82 @@
+{
+  "number": 53798,
+  "title": "[Bugfix] Seed align-mode Mamba state_idx in Mamba blocks",
+  "state": "open",
+  "merged": false,
+  "head_sha": "243dfa6df183eafcc092f9812ebcbd9da2d3b98e",
+  "body": "## Purpose\n\n`MambaHybridModelState.add_request` seeds a resumed request's running state block with `(num_computed_tokens - 1) // cache_config.block_size`. The align block table is laid out in Mamba blocks, `MambaSpec.block_size`, which the engine core can scale past the scheduler block when it unifies page sizes (`unify_kv_cache_spec_page_size`, `get_kv_cache_groups`), and the precopy kernel indexes the table in those units. The seed then lands in another row's column, or past the table at depth (illegal memory access in `precopy_mamba_align_fused_kernel`). The V1 path in `mamba_utils.py` already divides by `mamba_spec.block_size`.\n\nThe model state only sees the Mamba spec on the first real batch, after `add_request`, so it cannot look the size up lazily. Give it the KV cache config when the runner initializes the KV cache (`ModelState.set_kv_cache_config`, no-op by default), resolve the Mamba groups there, and seed with `MambaSpec.block_size`.\n\nReplaces the first revision, which cached the size lazily with a scheduler-block fallback. No open PR touches align-mode seeding.\n\n## Test\n\n`pytest tests/v1/worker/test_mamba_hybrid_model_state.py tests/v1/worker/test_mamba_utils.py tests/v1/worker/test_gpu_model_runner_v2.py` - 53 passed. The new case runs `add_request` with an 880-token Mamba block beside a 16-token scheduler block; it is the guard for the crash, since the two sizes coincide on today's `main` for the models below.\n\n2x DGX Spark, TP=2, Qwen3.8-27B-NVFP4 hybrid, `--prefix-cache-retention-interval`, 133k-token document: fresh, identical resubmit (prefix hit, resumed with computed tokens), new question. On `main` and on `main` + this commit the resume completes with 132,800 prefix-hit tokens and the resumed answer equals the fresh one at T=0; no regression. On a lineage with unified KV pages (Mamba block 1568) the same holds with a DFlash2 drafter, 12/12 on the tool-calling suite, unchanged from the previous revision. The illegal memory access itself reproduced on an earlier geometry of that lineage where the Mamba block differed from the attention block.\n\nAI assistance was used; every line reviewed and the unit tests above run by me.\n",
+  "files": [
+    {
+      "sha": "47ff2874a80aad3f8f7b7f20c28e418692a52689",
+      "filename": "tests/v1/worker/test_gpu_model_runner_v2.py",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "changes": 1,
+      "blob_url": "https://github.com/vllm-project/vllm/blob/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/tests%2Fv1%2Fworker%2Ftest_gpu_model_runner_v2.py",
+      "raw_url": "https://github.com/vllm-project/vllm/raw/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/tests%2Fv1%2Fworker%2Ftest_gpu_model_runner_v2.py",
+      "contents_url": "https://api.github.com/repos/vllm-project/vllm/contents/tests%2Fv1%2Fworker%2Ftest_gpu_model_runner_v2.py?ref=243dfa6df183eafcc092f9812ebcbd9da2d3b98e",
+      "patch": "@@ -37,6 +37,7 @@ def test_qsa_circular_group_uses_custom_slot_mapping(monkeypatch):\n         cache_config=SimpleNamespace(mamba_cache_mode=\"none\"),\n     )\n     runner.model_state = SimpleNamespace(\n+        set_kv_cache_config=lambda _kv_cache_config: None,\n         get_additional_cg_support=lambda: (),\n         num_new_sampled_tokens_per_step=1,\n     )"
+    },
+    {
+      "sha": "81fd793ee1c1456cff6cf38445290c10bf4da026",
+      "filename": "tests/v1/worker/test_mamba_hybrid_model_state.py",
+      "status": "modified",
+      "additions": 29,
+      "deletions": 0,
+      "changes": 29,
+      "blob_url": "https://github.com/vllm-project/vllm/blob/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/tests%2Fv1%2Fworker%2Ftest_mamba_hybrid_model_state.py",
+      "raw_url": "https://github.com/vllm-project/vllm/raw/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/tests%2Fv1%2Fworker%2Ftest_mamba_hybrid_model_state.py",
+      "contents_url": "https://api.github.com/repos/vllm-project/vllm/contents/tests%2Fv1%2Fworker%2Ftest_mamba_hybrid_model_state.py?ref=243dfa6df183eafcc092f9812ebcbd9da2d3b98e",
+      "patch": "@@ -13,6 +13,7 @@\n     RecoverSSMMetadata,\n     RecoverSSMPostprocessMetadata,\n )\n+from vllm.v1.kv_cache_interface import KVCacheConfig, KVCacheGroupSpec, MambaSpec\n from vllm.v1.worker.gpu.model_states import mamba_hybrid\n from vllm.v1.worker.gpu.model_states.mamba_hybrid import MambaHybridModelState\n from vllm.v1.worker.gpu.model_states.recoverssm import RecoverSSMState\n@@ -58,6 +59,34 @@ def test_prepare_attn_forwards_positions(monkeypatch: pytest.MonkeyPatch) -> Non\n     assert build_attn_metadata.call_args.kwargs[\"positions\"] is positions\n \n \n+def test_add_request_seeds_state_idx_in_mamba_blocks() -> None:\n+    \"\"\"The align block table is laid out in Mamba blocks, which page unification\n+    can make larger than cache_config.block_size.\"\"\"\n+    mamba_spec = MambaSpec(\n+        shapes=((1, 1),),\n+        dtypes=(torch.float32,),\n+        block_size=880,\n+        mamba_cache_mode=\"align\",\n+    )\n+    kv_cache_config = KVCacheConfig(\n+        num_blocks=1,\n+        kv_cache_tensors=[],\n+        kv_cache_groups=[KVCacheGroupSpec([\"mamba.0\"], mamba_spec)],\n+    )\n+    state = object.__new__(MambaHybridModelState)\n+    state.cache_config = SimpleNamespace(block_size=16)\n+    state._align_mode = True\n+    state.rope_state = None\n+    state.prompt_embeds_state = None\n+    state.num_accepted_tokens_gpu = torch.ones(2, dtype=torch.int32)\n+    state._mamba_state_idx_gpu = torch.zeros(2, dtype=torch.int32)\n+    state.set_kv_cache_config(kv_cache_config)\n+\n+    state.add_request(1, SimpleNamespace(num_computed_tokens=107_360))\n+\n+    assert state._mamba_state_idx_gpu[1] == 121\n+\n+\n @pytest.mark.skipif(not current_platform.is_cuda(), reason=\"Requires CUDA\")\n @pytest.mark.parametrize((\"num_sampled\", \"expected_value\"), [(0, 1), (3, 3)])\n def test_postprocess_state_scalar_with_int32_mapping("
+    },
+    {
+      "sha": "7d050c4fec63ba33b5a58f21d64108a3b97e2ef0",
+      "filename": "tests/v1/worker/test_mamba_utils.py",
+      "status": "modified",
+      "additions": 6,
+      "deletions": 6,
+      "changes": 12,
+      "blob_url": "https://github.com/vllm-project/vllm/blob/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/tests%2Fv1%2Fworker%2Ftest_mamba_utils.py",
+      "raw_url": "https://github.com/vllm-project/vllm/raw/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/tests%2Fv1%2Fworker%2Ftest_mamba_utils.py",
+      "contents_url": "https://api.github.com/repos/vllm-project/vllm/contents/tests%2Fv1%2Fworker%2Ftest_mamba_utils.py?ref=243dfa6df183eafcc092f9812ebcbd9da2d3b98e",
+      "patch": "@@ -510,9 +510,9 @@ def test_mamba_groups_support_different_state_specs():\n     assert mamba_groups == {gdn_spec: [0], short_conv_spec: [1]}\n \n     model_state = object.__new__(MambaHybridModelState)\n-    model_state._mamba_group_ids = []\n-    model_state._mamba_spec = None\n-    group_ids, representative_spec = model_state._get_mamba_group_info(kv_cache_config)\n+    model_state._align_mode = True\n+    model_state.set_kv_cache_config(kv_cache_config)\n+    group_ids, representative_spec = model_state._get_mamba_group_info()\n     assert group_ids == [0, 1]\n     assert representative_spec is gdn_spec\n \n@@ -598,9 +598,9 @@ def test_mamba_groups_support_mixed_specs_in_uniform_group():\n \n     # The group is listed once per spec, so its id must not be repeated.\n     model_state = object.__new__(MambaHybridModelState)\n-    model_state._mamba_group_ids = []\n-    model_state._mamba_spec = None\n-    group_ids, representative_spec = model_state._get_mamba_group_info(kv_cache_config)\n+    model_state._align_mode = True\n+    model_state.set_kv_cache_config(kv_cache_config)\n+    group_ids, representative_spec = model_state._get_mamba_group_info()\n     assert group_ids == [0]\n     assert representative_spec is gdn_spec\n "
+    },
+    {
+      "sha": "ccca131bfe57fdf58dd4cf3bcd65e4308dd94e62",
+      "filename": "vllm/v1/worker/gpu/model_runner.py",
+      "status": "modified",
+      "additions": 1,
+      "deletions": 0,
+      "changes": 1,
+      "blob_url": "https://github.com/vllm-project/vllm/blob/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/vllm%2Fv1%2Fworker%2Fgpu%2Fmodel_runner.py",
+      "raw_url": "https://github.com/vllm-project/vllm/raw/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/vllm%2Fv1%2Fworker%2Fgpu%2Fmodel_runner.py",
+      "contents_url": "https://api.github.com/repos/vllm-project/vllm/contents/vllm%2Fv1%2Fworker%2Fgpu%2Fmodel_runner.py?ref=243dfa6df183eafcc092f9812ebcbd9da2d3b98e",
+      "patch": "@@ -595,6 +595,7 @@ def initialize_kv_cache(\n             self.vllm_config,\n             self.device,\n         )\n+        self.model_state.set_kv_cache_config(self.kv_cache_config)\n         additional_attn_cg_support = self.model_state.get_additional_cg_support()\n         attn_cg_support = attn_cg_support.narrow(*additional_attn_cg_support)\n         # The speculator clears the flag at load time when the checkpoint has"
+    },
+    {
+      "sha": "ab5b8333c9c0c1aef62f3966c3b199737e7a3f4f",
+      "filename": "vllm/v1/worker/gpu/model_states/interface.py",
+      "status": "modified",
+      "additions": 5,
+      "deletions": 0,
+      "changes": 5,
+      "blob_url": "https://github.com/vllm-project/vllm/blob/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/vllm%2Fv1%2Fworker%2Fgpu%2Fmodel_states%2Finterface.py",
+      "raw_url": "https://github.com/vllm-project/vllm/raw/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/vllm%2Fv1%2Fworker%2Fgpu%2Fmodel_states%2Finterface.py",
+      "contents_url": "https://api.github.com/repos/vllm-project/vllm/contents/vllm%2Fv1%2Fworker%2Fgpu%2Fmodel_states%2Finterface.py?ref=243dfa6df183eafcc092f9812ebcbd9da2d3b98e",
+      "patch": "@@ -126,6 +126,11 @@ def remove_request(self, req_id: str) -> None:\n     def apply_staged_writes(self) -> None:\n         return None\n \n+    def set_kv_cache_config(self, kv_cache_config: KVCacheConfig) -> None:\n+        \"\"\"Hook run once the runner binds a KV cache config, before any\n+        request is added. No-op by default.\"\"\"\n+        return None\n+\n     def get_additional_cg_support(self) -> tuple[AttentionCGSupport, str | None]:\n         \"\"\"Cudagraph support of attention groups this ModelState builds outside\n         ``init_attn_backend`` (e.g. encoder-only layers)."
+    },
+    {
+      "sha": "7acae2de652b02b9b65c6870c6330d637658d4e8",
+      "filename": "vllm/v1/worker/gpu/model_states/mamba_hybrid.py",
+      "status": "modified",
+      "additions": 22,
+      "deletions": 17,
+      "changes": 39,
+      "blob_url": "https://github.com/vllm-project/vllm/blob/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/vllm%2Fv1%2Fworker%2Fgpu%2Fmodel_states%2Fmamba_hybrid.py",
+      "raw_url": "https://github.com/vllm-project/vllm/raw/243dfa6df183eafcc092f9812ebcbd9da2d3b98e/vllm%2Fv1%2Fworker%2Fgpu%2Fmodel_states%2Fmamba_hybrid.py",
+      "contents_url": "https://api.github.com/repos/vllm-project/vllm/contents/vllm%2Fv1%2Fworker%2Fgpu%2Fmodel_states%2Fmamba_hybrid.py?ref=243dfa6df183eafcc092f9812ebcbd9da2d3b98e",
+      "patch": "@@ -112,30 +112,35 @@ def __init__(\n             self._mamba_spec: MambaSpec | None = None\n             self._mamba_state_copy_funcs: MambaStateCopyFuncsByType | None = None\n \n+    def set_kv_cache_config(self, kv_cache_config: KVCacheConfig) -> None:\n+        if not self._align_mode:\n+            return\n+        mamba_groups = get_mamba_groups(kv_cache_config)\n+        mamba_spec = next(iter(mamba_groups))\n+        assert all(\n+            spec.block_size == mamba_spec.block_size\n+            and spec.num_speculative_blocks == mamba_spec.num_speculative_blocks\n+            and spec.mamba_cache_mode == mamba_spec.mamba_cache_mode\n+            for spec in mamba_groups\n+        ), \"all mamba groups must share cache scheduling parameters\"\n+        self._mamba_group_ids = get_mamba_group_ids(mamba_groups)\n+        self._mamba_spec = mamba_spec\n+\n     def add_request(self, req_index: int, new_req_data: NewRequestData) -> None:\n         super().add_request(req_index, new_req_data)\n         # Must reset the speculative acceptance count in this idx which could be stale.\n         self.num_accepted_tokens_gpu[req_index].fill_(1)\n         if self._align_mode:\n             # Seed the running state block from the resumed/prefilled position.\n+            # The align block table is laid out in Mamba blocks, which page\n+            # unification can make larger than cache_config.block_size.\n+            _, mamba_spec = self._get_mamba_group_info()\n             self._mamba_state_idx_gpu[req_index].fill_(\n-                (new_req_data.num_computed_tokens - 1) // self.cache_config.block_size\n+                (new_req_data.num_computed_tokens - 1) // mamba_spec.block_size\n             )\n \n-    def _get_mamba_group_info(\n-        self, kv_cache_config: KVCacheConfig\n-    ) -> tuple[list[int], MambaSpec]:\n-        if self._mamba_spec is None:\n-            mamba_groups = get_mamba_groups(kv_cache_config)\n-            mamba_spec = next(iter(mamba_groups))\n-            assert all(\n-                spec.block_size == mamba_spec.block_size\n-                and spec.num_speculative_blocks == mamba_spec.num_speculative_blocks\n-                and spec.mamba_cache_mode == mamba_spec.mamba_cache_mode\n-                for spec in mamba_groups\n-            ), \"all mamba groups must share cache scheduling parameters\"\n-            self._mamba_group_ids = get_mamba_group_ids(mamba_groups)\n-            self._mamba_spec = mamba_spec\n+    def _get_mamba_group_info(self) -> tuple[list[int], MambaSpec]:\n+        assert self._mamba_spec is not None, \"KV cache config not bound\"\n         return self._mamba_group_ids, self._mamba_spec\n \n     def _ensure_align_ctx(\n@@ -198,7 +203,7 @@ def preprocess_state(\n         num_reqs = input_batch.num_reqs\n         if num_reqs == 0:\n             return\n-        mamba_group_ids, mamba_spec = self._get_mamba_group_info(kv_cache_config)\n+        mamba_group_ids, mamba_spec = self._get_mamba_group_info()\n         ctx = self._ensure_align_ctx(kv_cache_config, mamba_group_ids, block_tables)\n \n         # The state-advance + pre-copy kernels run every step; they fast-exit per\n@@ -286,7 +291,7 @@ def prepare_attn(\n             num_decode_draft_tokens_cpu = torch.from_numpy(num_decode_draft_tokens_np)\n \n         if self._align_mode:\n-            mamba_group_ids, _ = self._get_mamba_group_info(kv_cache_config)\n+            mamba_group_ids, _ = self._get_mamba_group_info()\n             aligned_index_builders = []\n             for group_idx, group_id in enumerate(mamba_group_ids):\n                 for group in attn_groups[group_id]:"
+    }
+  ]
+}

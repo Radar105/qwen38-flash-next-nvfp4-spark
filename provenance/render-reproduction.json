@@ -1,0 +1,6 @@
+{
+  "pass": true,
+  "png_files": 10,
+  "method": "SHA-256 byte equality between original final plots and output from the portable packaged renderer",
+  "inference_requests": 0
+}

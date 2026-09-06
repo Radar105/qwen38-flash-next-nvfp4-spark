@@ -1,0 +1,1755 @@
+diff --git a/tests/models/qwen4_exp/test_config.py b/tests/models/qwen4_exp/test_config.py
+index b883aa24b8..6e4e61b46b 100644
+--- a/tests/models/qwen4_exp/test_config.py
++++ b/tests/models/qwen4_exp/test_config.py
+@@ -45,6 +45,31 @@ def _text_config(**kwargs) -> Qwen4ExpTextConfig:
+     return Qwen4ExpTextConfig(**values)
+ 
+ 
++def test_mtp_quantization_maps_local_indices_without_guessing_other_layers():
++    """A draft scale entry must follow its own layer, including multi-layer MTP."""
++    from vllm.models.qwen4_exp.nvidia.mtp import _remap_mtp_quantized_layers
++
++    first = {"quant_algo": "FP8_BLOCK_SCALES", "group_size": 128}
++    second = {"quant_algo": "NVFP4", "group_size": 16}
++    entries = {
++        "mtp.layers.0.mlp.experts": first,
++        "mtp.layers.1.mlp.experts": second,
++        "model.layers.0.mlp.experts": second,
++    }
++    actual = _remap_mtp_quantized_layers(entries, 48, 2)
++    assert actual == {
++        "mtp.layers.48.mlp.experts": first,
++        "mtp.layers.49.mlp.experts": second,
++        "model.layers.0.mlp.experts": second,
++    }
++    assert "mtp.layers.0.mlp.experts" in entries
++    assert _remap_mtp_quantized_layers(actual, 48, 2) == actual
++    with pytest.raises(ValueError, match="Conflicting MTP"):
++        _remap_mtp_quantized_layers(
++            {**entries, "mtp.layers.48.mlp.experts": second}, 48, 2
++        )
++
++
+ def test_qwen4_exp_mtp_returns_sample_and_multi_streams() -> None:
+     from vllm.models.qwen4_exp.nvidia.mtp import (
+         Qwen4ExpMultiTokenPredictor,
+diff --git a/tests/models/qwen4_exp/test_ple.py b/tests/models/qwen4_exp/test_ple.py
+index d7747ebfbd..18f4c23aa8 100644
+--- a/tests/models/qwen4_exp/test_ple.py
++++ b/tests/models/qwen4_exp/test_ple.py
+@@ -28,6 +28,7 @@ from vllm.models.qwen4_exp.nvidia.ple_layer import (
+     Qwen4ExpPLELayer,
+     _get_ple_embedding_quant_method,
+ )
++from vllm.models.qwen4_exp.nvidia.ple_mmap import MmapPLEEmbedding
+ from vllm.v1.attention.backends.short_conv_attn import (
+     PleShortConvAttentionMetadata,
+ )
+@@ -54,6 +55,54 @@ def _make_ngram_embedding_for_load_test() -> Qwen4ExpNGramEmbedding:
+     return module
+ 
+ 
++def test_mmap_ple_preserves_fp8_rows_scale_and_shard_boundaries(tmp_path) -> None:
++    """Disk lookup must match resident lookup, including repeats and the tail."""
++    import json
++
++    from safetensors.torch import save_file
++
++    prefix = "model.language_model.layers.1.ple.ple_embedding.ngram_embedding"
++    table = torch.arange(14).reshape(7, 2).to(torch.float8_e4m3fn)
++    scale = torch.tensor([0.25], dtype=torch.bfloat16)
++    tensors = {
++        f"{prefix}.shard_0.weight": table[:4],
++        f"{prefix}.shard_1.weight": table[4:],
++        f"{prefix}.weight_scale": scale,
++    }
++    save_file(tensors, tmp_path / "table.safetensors")
++    (tmp_path / "model.safetensors.index.json").write_text(
++        json.dumps({"weight_map": dict.fromkeys(tensors, "table.safetensors")})
++    )
++    runtime_prefix = prefix.replace("model.language_model.", "language_model.model.")
++    embedding = MmapPLEEmbedding(str(tmp_path), runtime_prefix, 7, 2, 2)
++    ids = torch.tensor([[6, 0, 4, 3, 6], [2, 1, 0, 5, 4]])
++    with pytest.raises(RuntimeError, match="missing.*scale"):
++        embedding(ids)
++    module = _make_ngram_embedding_for_load_test()
++    module.ngram_embedding = embedding
++    loaded = module.load_weights(
++        ("ngram_embedding." + name.removeprefix(prefix + "."), value)
++        for name, value in tensors.items()
++    )
++    assert "ngram_embedding.weight_scale" in loaded
++    actual = embedding(ids)
++    expected = table.view(torch.uint8)[ids].view(torch.float8_e4m3fn)
++    assert torch.equal(actual.view(torch.uint8), expected.view(torch.uint8))
++    torch.testing.assert_close(
++        actual.float() * embedding.weight_scale, expected.float() * scale.float()
++    )
++    assert sum(p.numel() for p in embedding.parameters()) == 0
++    assert embedding(torch.empty((0, 2), dtype=torch.long)).shape == (0, 2, 2)
++    for invalid in (-1, 7):
++        with pytest.raises(IndexError, match="outside vocabulary"):
++            embedding(torch.tensor([invalid]))
++    (tmp_path / "model.safetensors.index.json").write_text(
++        json.dumps({"weight_map": {f"{prefix}.shard_0.weight": "table.safetensors"}})
++    )
++    with pytest.raises(ValueError, match="every checkpoint"):
++        MmapPLEEmbedding(str(tmp_path), prefix, 7, 2, 2)
++
++
+ def _set_test_embedding_weight_loader(embedding) -> None:
+     embedding.weight.weight_loader = partial(
+         copy_ple_embedding_shard_,
+@@ -1077,6 +1126,8 @@ class _ConvBatchCase:
+     dilation: int = 3
+     spec_query_len: int = 1
+     graph_padding: int = 0
++    state_index_stride: int = 1
++    include_null_state: bool = True
+ 
+ 
+ def _make_conv_metadata(
+@@ -1123,9 +1174,18 @@ def _make_conv_metadata(
+         dtype=torch.int32,
+         device=device,
+     )
++    if case.state_index_stride > 1:
++        strided_indices = torch.full(
++            (non_spec_state_indices.numel(), case.state_index_stride),
++            NULL_BLOCK_ID,
++            dtype=torch.int32,
++            device=device,
++        )
++        strided_indices[:, 0] = non_spec_state_indices
++        non_spec_state_indices = strided_indices[:, 0]
+     if case.num_decodes > 1:
+         non_spec_state_indices[case.num_decodes - 1] = NULL_BLOCK_ID
+-    if num_prefills > 1:
++    if num_prefills > 1 and case.include_null_state:
+         non_spec_state_indices[case.num_decodes + 1] = NULL_BLOCK_ID
+ 
+     spec_query_start_loc = torch.tensor(
+@@ -1203,6 +1263,15 @@ def _make_conv_metadata(
+             _ConvBatchCase(prefill_query_lens=(37, 0, 5, 128)),
+             id="prefill",
+         ),
++        pytest.param(
++            _ConvBatchCase(
++                prefill_query_lens=(16, 676),
++                channels=10240,
++                state_index_stride=4,
++                include_null_state=False,
++            ),
++            id="prefill-strided-state-indices",
++        ),
+         pytest.param(
+             _ConvBatchCase(
+                 spec_query_lens=(1, 4, 4, 0),
+@@ -1243,6 +1312,8 @@ def test_fused_conv_correctness(
+ ) -> None:
+     device = torch.device("cuda")
+     metadata, num_real_tokens = _make_conv_metadata(case, device)
++    if case.state_index_stride > 1:
++        assert metadata.state_indices_tensor.stride(0) == case.state_index_stride
+     module = Qwen4ExpPLELayer.__new__(Qwen4ExpPLELayer)
+     nn.Module.__init__(module)
+     module.conv_state_len = (case.kernel_size - 1) * case.dilation
+diff --git a/tests/quantization/test_modelopt.py b/tests/quantization/test_modelopt.py
+index 151fbbf840..8e66b80d8d 100644
+--- a/tests/quantization/test_modelopt.py
++++ b/tests/quantization/test_modelopt.py
+@@ -236,6 +236,35 @@ def test_modelopt_nvfp4_leaves_excluded_parallel_lm_head_unquantized():
+     assert isinstance(method, UnquantizedLinearMethod)
+ 
+ 
++def test_modelopt_mixed_precision_dispatches_block_fp8_expert_scales(monkeypatch):
++    """NVIDIA MTP block scales must not fall through to unquantized experts."""
++    from vllm.model_executor.layers.quantization import fp8
++    from vllm.model_executor.layers.quantization.modelopt import RoutedExperts
++
++    prefix = "mtp.layers.48.mlp.experts"
++    config = ModelOptMixedPrecisionConfig.from_config(
++        {
++            "quantization": {
++                "quant_algo": "MIXED_PRECISION",
++                "kv_cache_quant_algo": None,
++                "exclude_modules": [],
++                "quantized_layers": {
++                    prefix: {"quant_algo": "FP8_BLOCK_SCALES", "group_size": 128}
++                },
++            }
++        }
++    )
++    constructor = Mock(return_value=object())
++    monkeypatch.setattr(fp8, "Fp8MoEMethod", constructor)
++    layer = MagicMock(spec=RoutedExperts)
++    assert config.get_quant_method(layer, prefix) is constructor.return_value
++    block_config, passed_layer = constructor.call_args.args
++    assert passed_layer is layer
++    assert block_config.weight_block_size == [128, 128]
++    assert block_config.activation_scheme == "dynamic"
++    assert block_config.is_checkpoint_fp8_serialized
++
++
+ def test_modelopt_mixed_precision_quantizes_parallel_lm_head():
+     config = _mixed_precision_config(
+         {"lm_head": {"quant_algo": "NVFP4", "group_size": 16}}
+diff --git a/tests/v1/core/prefix_cache/test_partial_prefix_cache_hits.py b/tests/v1/core/prefix_cache/test_partial_prefix_cache_hits.py
+index 864d88831a..06da81fe43 100644
+--- a/tests/v1/core/prefix_cache/test_partial_prefix_cache_hits.py
++++ b/tests/v1/core/prefix_cache/test_partial_prefix_cache_hits.py
+@@ -161,15 +161,17 @@ def test_dcp_fine_hit_retention_uses_hash_alignment_without_eagle():
+ 
+ @pytest.mark.parametrize("dcp_world_size", [1, 4])
+ def test_mamba_align_split_partial_tail_schedule(dcp_world_size: int):
+-    """Chunk ends with partial hits on: block-aligned chunks, one extra stop
+-    at the prompt's last hash boundary (registering the partial tail), then
+-    the remaining tokens. block=512, hash=32, prompt=10000, budget=8192:
+-    0 -> 8192 -> 9728 -> 9984 -> 10000."""
++    """Chunk ends with partial hits on: a stop at every crossed block
++    boundary (each materializes a mamba state slot; no spanning chunks), one
++    extra stop at the prompt's last hash boundary (registering the partial
++    tail), then the remaining tokens. block=512, hash=32, prompt=10000,
++    budget=8192: 0 -> 512 -> ... -> 9728 -> 9984 -> 10000."""
+     block_size = 512
+     scheduler_block_size = block_size * dcp_world_size
+     hash_block_size = 32
+     mock = SimpleNamespace(
+         cache_config=SimpleNamespace(block_size=block_size),
++        mamba_state_block_size=block_size,
+         max_num_scheduled_tokens=8192,
+         scheduler_config=SimpleNamespace(long_prefill_token_threshold=0),
+         use_eagle_block_drop=False,
+@@ -183,10 +185,12 @@ def test_mamba_align_split_partial_tail_schedule(dcp_world_size: int):
+ 
+     req = make_request("0", [0] * 10000, hash_block_size, sha256)
+     req.num_computed_tokens = 0
+-    assert split(self=mock, request=req, num_new_tokens=8192) == 8192
+-    req.num_computed_tokens = 8192
+-    # Stop at the last block boundary (9728).
+-    assert split(self=mock, request=req, num_new_tokens=1808) == 1536
++    # Stop at the next block boundary even from an aligned start (no
++    # spanning chunks: interior state slots must materialize).
++    assert split(self=mock, request=req, num_new_tokens=8192) == 512
++    req.num_computed_tokens = 9728 - 512
++    # Full-budget requests still advance exactly one block per step.
++    assert split(self=mock, request=req, num_new_tokens=10000) == 512
+     req.num_computed_tokens = 9728
+     # Extra stop at the prompt's last hash boundary (9984).
+     assert split(self=mock, request=req, num_new_tokens=272) == 256
+@@ -218,6 +222,7 @@ def test_mamba_align_split_when_block_exceeds_scheduling_budget():
+     prompt_length = 30000
+     mock = SimpleNamespace(
+         cache_config=SimpleNamespace(block_size=block_size),
++        mamba_state_block_size=block_size,
+         max_num_scheduled_tokens=token_budget,
+         scheduler_config=SimpleNamespace(long_prefill_token_threshold=0),
+         use_eagle_block_drop=False,
+@@ -255,6 +260,7 @@ def test_mamba_align_split_when_block_exceeds_long_prefill_threshold():
+     prompt_length = 1300
+     mock = SimpleNamespace(
+         cache_config=SimpleNamespace(block_size=block_size),
++        mamba_state_block_size=block_size,
+         max_num_scheduled_tokens=token_budget,
+         scheduler_config=SimpleNamespace(
+             long_prefill_token_threshold=long_prefill_threshold
+diff --git a/tests/v1/core/test_kv_cache_utils.py b/tests/v1/core/test_kv_cache_utils.py
+index f0bd296b71..347cdd4479 100644
+--- a/tests/v1/core/test_kv_cache_utils.py
++++ b/tests/v1/core/test_kv_cache_utils.py
+@@ -3982,13 +3982,92 @@ def test_deepseek_v4_draft_group_annotated_on_packed_path():
+     assert "model.layers.3.self_attn.attn" in flagged[0].layer_names
+ 
+ 
+-def test_deepseek_v4_annotation_requires_model_type():
+-    # The positional rule is only sound for DeepseekV4, where the draft layer
+-    # is known to be registered last. Without that model gate nothing may be
+-    # flagged, however the grouping happens to fall out.
++def test_trailing_layer_fallback_applies_to_any_mtp_model():
++    # The positional rule is sound for every MTP drafter, not just DeepseekV4:
++    # MTP blocks reuse the target's decoder layer (no spec marker) and always
++    # register after every target layer. The model_type must not gate it.
+     groups = get_kv_cache_groups(
+         _spec_decode_grouping_config(method="mtp", model_type="other"),
+         _deepseek_v4_specs(),
+     )
+ 
++    flagged = [g for g in groups if g.is_eagle_group]
++    assert len(flagged) == 1
++    assert "model.layers.3.self_attn.attn" in flagged[0].layer_names
++
++
++def _qwen3_5_hybrid_specs(with_mtp_layer: bool):
++    """Qwen3.5-shaped hybrid: repeating [GDN x3, full-attn x1] blocks, with
++    the MTP drafter's full-attn layer (spec-identical to the target's)
++    registered last."""
++    specs = {}
++    idx = 0
++    for _ in range(2):
++        for _ in range(3):
++            specs[f"model.layers.{idx}.linear_attn"] = new_mamba_spec(
++                mamba_cache_mode="align"
++            )
++            idx += 1
++        specs[f"model.layers.{idx}.self_attn.attn"] = new_kv_cache_spec()
++        idx += 1
++    if with_mtp_layer:
++        specs["mtp.layers.0.self_attn.attn"] = new_kv_cache_spec()
++    return specs
++
++
++def test_qwen3_5_mtp_draft_group_annotated_on_hybrid_path(caplog_vllm):
++    # A hybrid mamba + full-attention model with an MTP drafter that is
++    # spec-indistinguishable from the target reaches the general multi-group
++    # path. The trailing-layer rule must locate the draft group there so the
++    # Mamba groups are not swept up by the flag-all consumer fallback.
++    groups = get_kv_cache_groups(
++        _spec_decode_grouping_config(method="mtp", model_type="qwen3_5"),
++        _qwen3_5_hybrid_specs(with_mtp_layer=True),
++    )
++
++    flagged = [g for g in groups if g.is_eagle_group]
++    assert len(flagged) == 1
++    assert "mtp.layers.0.self_attn.attn" in flagged[0].layer_names
++    for group in groups:
++        if any(
++            isinstance(spec, MambaSpec)
++            for spec in iter_layer_specs(group.kv_cache_spec)
++        ):
++            assert not group.is_eagle_group
++    assert "could be identified as the draft model's" not in caplog_vllm.text
++
++
++def test_non_mtp_eagle_hybrid_still_warns(caplog_vllm):
++    # eagle/eagle3 drafters are not covered by the trailing-layer rule (kept
++    # conservative), so an unidentifiable hybrid draft must still warn.
++    groups = get_kv_cache_groups(
++        _spec_decode_grouping_config(method="eagle3", model_type="qwen3_5"),
++        _qwen3_5_hybrid_specs(with_mtp_layer=True),
++    )
++
+     assert not any(g.is_eagle_group for g in groups)
++    assert "could be identified as the draft model's" in caplog_vllm.text
++
++
++def test_trailing_layer_fallback_requires_exact_partition():
++    # If the groups do not partition the layers exactly (e.g. a caller that
++    # dropped or duplicated layers), the positional rule is meaningless and
++    # must not fire.
++    from vllm.v1.core.kv_cache_utils import _annotate_eagle_groups
++
++    specs = _qwen3_5_hybrid_specs(with_mtp_layer=True)
++    config = _spec_decode_grouping_config(method="mtp", model_type="qwen3_5")
++    groups = get_kv_cache_groups(config, specs)
++    for g in groups:
++        g.is_eagle_group = False
++    # Remove one layer from its group: no longer an exact partition.
++    trimmed = [
++        KVCacheGroupSpec(
++            [n for n in g.layer_names if n != "model.layers.0.linear_attn"],
++            g.kv_cache_spec,
++        )
++        for g in groups
++    ]
++    _annotate_eagle_groups(config, specs, trimmed, use_trailing_layer_fallback=True)
++
++    assert not any(g.is_eagle_group for g in trimmed)
+diff --git a/tests/v1/core/test_mamba_align_chunk_split.py b/tests/v1/core/test_mamba_align_chunk_split.py
+index 2d7d77f1ce..5faea89143 100644
+--- a/tests/v1/core/test_mamba_align_chunk_split.py
++++ b/tests/v1/core/test_mamba_align_chunk_split.py
+@@ -89,6 +89,10 @@ def _split(
+         use_eagle_block_drop = use_eagle
+     stub = SimpleNamespace(
+         cache_config=SimpleNamespace(block_size=MAMBA_BLOCK_SIZE),
++        # Set by `Scheduler.__init__` from the mamba group's spec; the equal
++        # geometry of these tests keeps it identical to `cache_config`.
++        mamba_state_block_size=MAMBA_BLOCK_SIZE,
++        use_eagle=use_eagle,
+         use_eagle_block_drop=use_eagle_block_drop,
+         max_num_scheduled_tokens=16384,
+         scheduler_config=SimpleNamespace(long_prefill_token_threshold=0),
+@@ -138,7 +142,15 @@ def test_disabling_eagle_block_drop_keeps_the_trailing_cache_boundary() -> None:
+     without_drop = _split(request, request.num_tokens, use_eagle_block_drop=False)
+ 
+     assert with_drop == MAMBA_BLOCK_SIZE
+-    assert without_drop == 2 * MAMBA_BLOCK_SIZE
++    # Every state boundary now ends a chunk, even without the final-block drop.
++    assert without_drop == MAMBA_BLOCK_SIZE
++    request.num_computed_tokens = MAMBA_BLOCK_SIZE
++    assert (
++        _split(
++            request, request.num_tokens - MAMBA_BLOCK_SIZE, use_eagle_block_drop=False
++        )
++        == MAMBA_BLOCK_SIZE
++    )
+ 
+ 
+ def _run_chunked_prefill(
+@@ -307,3 +319,235 @@ def test_unaligned_resume_never_runs_past_its_block(
+             f"intermediate chunk end {end} is neither block-aligned nor the "
+             f"partial-tail boundary"
+         )
++
++
++# Heterogeneous layouts: `cache_config.block_size` is the minimum over all
++# groups and can be finer than the mamba state grid (page-size matching, a
++# drafter/attention group with a smaller block, or an explicit --block-size;
++# see also #53142 for the worker-side sibling). Production geometry that
++# exposed this: draft attention block 816, mamba block 1648 — 816k equals
++# 1648m only at the LCM (84048), so chunk stops on the generic grid never
++# materialize a state and the mamba group publishes no prefix hashes.
++HETERO_ATTN_BLOCK_SIZE = 816
++HETERO_MAMBA_BLOCK_SIZE = 1648
++HETERO_SCHEDULER_BLOCK_SIZE = 84048  # lcm(816, 1648)
++HETERO_MAMBA_GROUP_ID = 1
++
++
++def _make_heterogeneous_kv_cache_manager() -> KVCacheManager:
++    config = KVCacheConfig(
++        num_blocks=10000,
++        kv_cache_tensors=[],
++        kv_cache_groups=[
++            KVCacheGroupSpec(
++                ["attention_layer"],
++                FullAttentionSpec(
++                    block_size=HETERO_ATTN_BLOCK_SIZE,
++                    num_kv_heads=1,
++                    head_size=1,
++                    dtype=torch.float32,
++                ),
++            ),
++            KVCacheGroupSpec(
++                ["mamba_layer"],
++                MambaSpec(
++                    block_size=HETERO_MAMBA_BLOCK_SIZE,
++                    shapes=((1, 1),),
++                    dtypes=(torch.float32,),
++                    mamba_cache_mode="align",
++                    num_speculative_blocks=NUM_SPEC,
++                ),
++            ),
++        ],
++    )
++    return KVCacheManager(
++        config,
++        max_model_len=262144,
++        scheduler_block_size=HETERO_SCHEDULER_BLOCK_SIZE,
++        hash_block_size=ATTN_BLOCK_SIZE,
++        enable_caching=True,
++        use_eagle=True,
++    )
++
++
++def _hetero_split(request: Request, num_new_tokens: int) -> int:
++    """Real split on a heterogeneous-layout stub `self`.
++
++    `cache_config.block_size` is the group minimum (816); the mamba state
++    grid is 1648. `mamba_state_block_size` mirrors the attribute
++    `Scheduler.__init__` derives from the mamba group's spec.
++    """
++    stub = SimpleNamespace(
++        cache_config=SimpleNamespace(block_size=HETERO_ATTN_BLOCK_SIZE),
++        mamba_state_block_size=HETERO_MAMBA_BLOCK_SIZE,
++        use_eagle=True,
++        use_eagle_block_drop=True,
++        max_num_scheduled_tokens=16384,
++        scheduler_config=SimpleNamespace(long_prefill_token_threshold=0),
++        mamba_partial_cache_hit=False,
++        hash_block_size=ATTN_BLOCK_SIZE,
++        mamba_has_prefill_checkpoint_blocks=False,
++    )
++    return Scheduler._mamba_block_aligned_split(stub, request, num_new_tokens)
++
++
++def test_heterogeneous_block_sizes_stop_chunks_on_the_mamba_grid() -> None:
++    """Chunk ends must follow MambaSpec.block_size, not cache_config.block_size."""
++    prompt_len = 4 * HETERO_MAMBA_BLOCK_SIZE + 70
++    (request,) = create_requests(1, num_tokens=prompt_len, block_size=ATTN_BLOCK_SIZE)
++    pos, ends = 0, []
++    while pos < prompt_len:
++        request.num_computed_tokens = pos
++        num_new = _hetero_split(request, prompt_len - pos)
++        assert num_new > 0, f"no progress at {pos}"
++        pos += num_new
++        ends.append(pos)
++    for end in ends[:-1]:
++        assert end % HETERO_MAMBA_BLOCK_SIZE == 0, (
++            f"intermediate chunk end {end} is off the mamba state grid; the "
++            f"worker never commits a state there (816-grid stop)"
++        )
++    assert ends[0] % HETERO_MAMBA_BLOCK_SIZE == 0, (
++        f"first chunk ended at {ends[0]}, off the mamba state grid "
++        f"(816-grid stop); ends={ends}"
++    )
++
++
++def test_aligned_start_does_not_span_multiple_state_blocks() -> None:
++    """A full token budget must not skip interior state boundaries.
++
++    With the stop conditional on a mid-block start, a chunk beginning exactly
++    on a boundary could run to the budget-clamped end whenever the budget
++    exceeds one block, crossing k boundaries and leaving the k-1 interior
++    state slots permanently null (one state column is materialized per step).
++    """
++    prompt_len = 5 * HETERO_MAMBA_BLOCK_SIZE + 30
++    (request,) = create_requests(1, num_tokens=prompt_len, block_size=ATTN_BLOCK_SIZE)
++    # Request the FULL remaining prompt every step, as a solo prefill with a
++    # budget larger than 2 blocks would (no per-block rationing).
++    pos, ends = 0, []
++    while pos < prompt_len:
++        request.num_computed_tokens = pos
++        num_new = _hetero_split(request, prompt_len - pos)
++        assert num_new > 0, f"no progress at {pos}"
++        pos += num_new
++        ends.append(pos)
++    expected_grid_ends = [
++        (i + 1) * HETERO_MAMBA_BLOCK_SIZE
++        for i in range(prompt_len // HETERO_MAMBA_BLOCK_SIZE)
++    ]
++    materialized = [e for e in ends if e % HETERO_MAMBA_BLOCK_SIZE == 0]
++    assert materialized == expected_grid_ends, (
++        f"state-grid chunk ends {materialized} != consecutive boundaries "
++        f"{expected_grid_ends}; interior slots stayed null (spanning chunk)"
++    )
++
++
++def _hetero_prefill(prompt_len: int) -> tuple[KVCacheManager, Request, dict[int, int]]:
++    """Prefill one request through the real manager under the hetero layout.
++
++    Budgets one mamba block per step, the shape the fixed split produces for
++    a request sharing the token budget (and the equal-geometry tests above).
++    """
++    manager = _make_heterogeneous_kv_cache_manager()
++    (request,) = create_requests(1, num_tokens=prompt_len, block_size=ATTN_BLOCK_SIZE)
++    mamba_manager = manager.coordinator.single_type_managers[HETERO_MAMBA_GROUP_ID]
++    state_at: dict[int, int] = {}
++    while request.num_computed_tokens < request.num_tokens:
++        computed = request.num_computed_tokens
++        budget = min(HETERO_MAMBA_BLOCK_SIZE, request.num_tokens - computed)
++        num_new = _hetero_split(request, budget)
++        assert num_new > 0, f"no progress at {computed}"
++        assert (
++            manager.allocate_slots(request, num_new, num_lookahead_tokens=NUM_SPEC)
++            is not None
++        )
++        request.num_computed_tokens = computed + num_new
++        blocks = mamba_manager.req_to_blocks[request.request_id]
++        running = cdiv(request.num_computed_tokens, HETERO_MAMBA_BLOCK_SIZE) - 1
++        state_at[blocks[running].block_id] = request.num_computed_tokens
++    return manager, request, state_at
++
++
++def test_heterogeneous_block_sizes_publish_mamba_states_for_immediate_reuse() -> None:
++    """Mamba states must be published where the worker materializes them.
++
++    On the generic 816 grid no chunk ever ends on the 1648 state grid, so the
++    mamba group publishes zero prefix hashes and a request repeating the same
++    prompt immediately reuses nothing.
++    """
++    prompt_len = 4 * HETERO_MAMBA_BLOCK_SIZE + 70
++    manager, first, state_at = _hetero_prefill(prompt_len)
++    mamba_manager = manager.coordinator.single_type_managers[HETERO_MAMBA_GROUP_ID]
++
++    published = [
++        block.block_hash_num_tokens
++        for block in mamba_manager.req_to_blocks[first.request_id]
++        if not block.is_null and block.block_hash is not None
++    ]
++    full_block_entries = [p for p in published if p % HETERO_MAMBA_BLOCK_SIZE == 0]
++    assert full_block_entries, (
++        f"no mamba full-block state published (entries={published}); "
++        f"immediate reuse on this layout is impossible"
++    )
++    # Safety: every hashed slot holds the state its hash claims.
++    for block in mamba_manager.req_to_blocks[first.request_id]:
++        if block.is_null or block.block_hash is None:
++            continue
++        assert state_at.get(block.block_id) == block.block_hash_num_tokens, (
++            f"mamba slot hashed as state@{block.block_hash_num_tokens} but "
++            f"holds state@{state_at.get(block.block_id)}"
++        )
++
++    (second,) = create_requests(1, num_tokens=prompt_len, block_size=ATTN_BLOCK_SIZE)
++    # The scheduler hashes prompt token ids deterministically, so mirror it:
++    second.all_token_ids = first.all_token_ids
++    second.block_hashes = first.block_hashes
++    _, num_computed, _ = manager.get_computed_blocks(second)
++    assert num_computed >= HETERO_MAMBA_BLOCK_SIZE, (
++        f"immediate repeat of the same prompt reused {num_computed} tokens "
++        f"(expected at least one legal mamba boundary)"
++    )
++    assert num_computed % HETERO_MAMBA_BLOCK_SIZE == 0
++
++
++def test_equal_block_sizes_control_still_reuses() -> None:
++    """Control: with cache_config.block_size == MambaSpec.block_size the
++    behavior is the same before and after a heterogeneous-layout fix."""
++    prompt_len = 2 * MAMBA_BLOCK_SIZE + 70
++    manager = _make_hybrid_kv_cache_manager()
++    (request,) = create_requests(1, num_tokens=prompt_len, block_size=ATTN_BLOCK_SIZE)
++    while request.num_computed_tokens < request.num_tokens:
++        computed = request.num_computed_tokens
++        num_new = _split(request, request.num_tokens - computed)
++        assert num_new > 0
++        assert (
++            manager.allocate_slots(request, num_new, num_lookahead_tokens=NUM_SPEC)
++            is not None
++        )
++        request.num_computed_tokens = computed + num_new
++    (second,) = create_requests(1, num_tokens=prompt_len, block_size=ATTN_BLOCK_SIZE)
++    second.all_token_ids = request.all_token_ids
++    second.block_hashes = request.block_hashes
++    _, num_computed, _ = manager.get_computed_blocks(second)
++    assert num_computed >= MAMBA_BLOCK_SIZE
++    assert num_computed % MAMBA_BLOCK_SIZE == 0
++
++
++def test_mamba_state_grid_unwraps_uniform_group():
++    from vllm.v1.core.sched.scheduler import _mamba_state_block_size
++    from vllm.v1.kv_cache_interface import UniformTypeKVCacheSpecs
++
++    spec = MambaSpec(
++        block_size=1600,
++        shapes=((1, 1),),
++        dtypes=(torch.float32,),
++        mamba_cache_mode="align",
++    )
++    grouped = UniformTypeKVCacheSpecs(block_size=1600, kv_cache_specs={"gdn": spec})
++    config = KVCacheConfig(
++        num_blocks=2,
++        kv_cache_tensors=[],
++        kv_cache_groups=[KVCacheGroupSpec(["gdn"], grouped)],
++    )
++    assert _mamba_state_block_size(config) == 1600
+diff --git a/tests/v1/core/test_prefix_caching.py b/tests/v1/core/test_prefix_caching.py
+index 168450a7f2..d8bd61a7d9 100644
+--- a/tests/v1/core/test_prefix_caching.py
++++ b/tests/v1/core/test_prefix_caching.py
+@@ -1163,6 +1163,7 @@ def test_hybrid_cache_mamba_align_shared_prefix_detection():
+     # Create minimal mock with just the needed attributes
+     mock = SimpleNamespace(
+         cache_config=SimpleNamespace(block_size=block_size),
++        mamba_state_block_size=block_size,
+         max_num_scheduled_tokens=3 * block_size,
+         scheduler_config=SimpleNamespace(long_prefill_token_threshold=0),
+         use_eagle_block_drop=False,
+@@ -1176,7 +1177,9 @@ def test_hybrid_cache_mamba_align_shared_prefix_detection():
+         request=req_2,
+         num_new_tokens=3 * block_size,
+     )
+-    assert num_new_tokens_adjusted == 2 * block_size  # adjust to the common prefix
++    # The boundary stop is unconditional, so from num_computed 0 the chunk
++    # ends at the first block boundary covered by the junction (one block).
++    assert num_new_tokens_adjusted == block_size  # stop at the next boundary
+ 
+     manager.allocate_slots(req_2, 3 * block_size, 0, computed_blocks)
+     # Cleanup
+@@ -3638,6 +3641,193 @@ def test_hybrid_local_kv_retention_mtp_reuses_latest_boundary():
+     assert [len(blocks) for blocks in computed_blocks.blocks] == [3, 12]
+ 
+ 
++@pytest.mark.parametrize("annotate_eagle_groups", [None, "full_only", "both"])
++def test_hybrid_mamba_retention_mtp_boundary_reachable_after_eagle_drop(
++    annotate_eagle_groups,
++):
++    """Verify Mamba latest-only retention serves an MTP/EAGLE lookup.
++
++    The full-attention EAGLE lookup drops one block below what it matched, so
++    until a request decodes past the block boundary after its prompt, the only
++    candidate the coordinator can offer the Mamba group is one block below the
++    replay boundary. Mamba retention must keep that state too; keeping only the
++    boundary state leaves every retained state one block above every reachable
++    candidate, and the reconciled hit is always zero (found live on
++    GLM-5.3-Flash MTP: 0 hits across 16,897 queries).
++
++    Parametrized over how the groups are annotated, because the three cases
++    reach the manager's ``use_eagle`` bit by different routes and only one of
++    them is what production hits today: ``None`` is the coordinator's flag-all
++    fallback (no model annotator exists for glm5_next, so this is the live
++    path), ``full_only`` is a single annotated group (what a future annotator
++    would produce), and ``both`` is the hand-flagged case.
++    """
++    block_size = 32
++    num_spec = 3
++    full_is_eagle = annotate_eagle_groups in ("full_only", "both")
++    mamba_is_eagle = annotate_eagle_groups == "both"
++    kv_cache_config = KVCacheConfig(
++        num_blocks=100,
++        kv_cache_tensors=[],
++        kv_cache_groups=[
++            KVCacheGroupSpec(
++                ["full"],
++                FullAttentionSpec(
++                    block_size=block_size,
++                    num_kv_heads=1,
++                    head_size=1,
++                    dtype=torch.float16,
++                ),
++                is_eagle_group=full_is_eagle,
++            ),
++            KVCacheGroupSpec(
++                ["mamba_mtp"],
++                MambaSpec(
++                    block_size=block_size,
++                    shapes=((1, 1),),
++                    dtypes=(torch.float32,),
++                    mamba_cache_mode="align",
++                    num_speculative_blocks=num_spec,
++                ),
++                is_eagle_group=mamba_is_eagle,
++            ),
++        ],
++    )
++    manager = make_kv_cache_manager(
++        kv_cache_config=kv_cache_config,
++        max_model_len=8192,
++        enable_caching=True,
++        hash_block_size=block_size,
++        retention_interval=0,
++        use_eagle=True,
++    )
++
++    # 127 tokens: replay boundary floor(126 / 32) * 32 = 96, i.e. block 2's end.
++    # Prefill in block-aligned chunks the way the align-mode scheduler does:
++    # the state one block below the boundary only materializes as a chunk's
++    # running-state block, so a single-shot prefill could not retain it.
++    token_ids = [i for i in range(3) for _ in range(block_size)] + [3] * 31
++    req0 = make_request("0", token_ids, block_size, sha256)
++    computed_blocks, num_computed_tokens, _ = manager.get_computed_blocks(req0)
++    assert num_computed_tokens == 0
++    for chunk_end in (32, 64, 96, 127):
++        blocks = manager.allocate_slots(
++            req0,
++            chunk_end - req0.num_computed_tokens,
++            num_computed_tokens,
++            computed_blocks,
++            num_lookahead_tokens=num_spec,
++        )
++        assert blocks is not None
++        req0.num_computed_tokens = chunk_end
++
++    # Mamba keeps the boundary state (block 2) plus the state one block below
++    # (block 1) -- the only position an EAGLE-dropped lookup can reach while
++    # the request has not decoded past the next block boundary.
++    pool = manager.block_pool
++    expected_mamba_cached = {1, 2}
++    for i in range(3):
++        cached = pool.get_cached_block(req0.block_hashes[i], kv_cache_group_ids=[1])
++        if i in expected_mamba_cached:
++            assert cached is not None, f"mamba hash {i} should be cached"
++        else:
++            assert cached is None, f"mamba hash {i} should not be cached"
++    manager.free(req0)
++
++    # Identical resend: full attention matches blocks 0-2 (96 tokens) and the
++    # EAGLE drop caps the candidate at 64; the retained state at 64 serves it.
++    req1 = make_request("1", token_ids, block_size, sha256)
++    computed_blocks, num_computed_tokens, _ = manager.get_computed_blocks(req1)
++    assert num_computed_tokens == 2 * block_size
++    assert [len(blocks) for blocks in computed_blocks.blocks] == [2, 2]
++
++
++def test_hybrid_mamba_retention_eagle_backoff_is_one_alignment_unit():
++    """The EAGLE back-off is one ALIGNMENT unit, which is not one Mamba block.
++
++    When the groups' block sizes differ, the scheduler alignment is their LCM,
++    and the full-attention finder subtracts ``min(alignment, its block_size)``
++    and re-floors -- landing one alignment unit below the boundary regardless.
++    Backing off one Mamba block instead retains a state at the wrong offset:
++    Mamba's own finder then rejects it (its hit must be alignment-aligned) and
++    the reconciled hit stays 0, so the extra block is dead weight.
++
++    Here alignment is 64 and the Mamba block is 32, so the reachable position
++    is two Mamba blocks below the boundary, not one.
++    """
++    mamba_block = 32
++    full_block = 64  # scheduler alignment = lcm(64, 32) = 64 = 2 mamba blocks
++    kv_cache_config = KVCacheConfig(
++        num_blocks=200,
++        kv_cache_tensors=[],
++        kv_cache_groups=[
++            KVCacheGroupSpec(
++                ["full"],
++                FullAttentionSpec(
++                    block_size=full_block,
++                    num_kv_heads=1,
++                    head_size=1,
++                    dtype=torch.float16,
++                ),
++                is_eagle_group=True,
++            ),
++            KVCacheGroupSpec(
++                ["mamba_mtp"],
++                MambaSpec(
++                    block_size=mamba_block,
++                    shapes=((1, 1),),
++                    dtypes=(torch.float32,),
++                    mamba_cache_mode="align",
++                ),
++                is_eagle_group=True,
++            ),
++        ],
++    )
++    # hash_block_size must divide every group's block size, so it is the
++    # smaller (Mamba) block; the scheduler alignment is still the LCM, 64.
++    manager = make_kv_cache_manager(
++        kv_cache_config=kv_cache_config,
++        max_model_len=8192,
++        enable_caching=True,
++        hash_block_size=mamba_block,
++        retention_interval=0,
++        use_eagle=True,
++    )
++
++    # 255 tokens: replay boundary floor(254 / 64) * 64 = 192. In Mamba blocks
++    # that is index 5; the EAGLE-reachable position 192 - 64 = 128 is index 3.
++    token_ids = [i for i in range(7) for _ in range(mamba_block)] + [7] * 31
++    req0 = make_request("0", token_ids, mamba_block, sha256)
++    computed_blocks, num_computed_tokens, _ = manager.get_computed_blocks(req0)
++    assert num_computed_tokens == 0
++    for chunk_end in (64, 128, 192, 255):
++        blocks = manager.allocate_slots(
++            req0,
++            chunk_end - req0.num_computed_tokens,
++            num_computed_tokens,
++            computed_blocks,
++        )
++        assert blocks is not None
++        req0.num_computed_tokens = chunk_end
++
++    pool = manager.block_pool
++    cached_mamba = {
++        i
++        for i in range(len(req0.block_hashes))
++        if pool.get_cached_block(req0.block_hashes[i], kv_cache_group_ids=[1])
++        is not None
++    }
++    # Index 3 is the one a post-drop lookup can ask for; index 4 (one block
++    # below the boundary) is what a block-sized back-off would have kept.
++    assert 3 in cached_mamba, f"reachable state missing; cached={sorted(cached_mamba)}"
++    assert 4 not in cached_mamba, "one-block back-off retained an unreachable state"
++
++    manager.free(req0)
++    req1 = make_request("1", token_ids, mamba_block, sha256)
++    _, num_computed_tokens, _ = manager.get_computed_blocks(req1)
++    assert num_computed_tokens == 128
++
++
+ def test_block_lookup_cache_single_block_per_key():
+     cache = BlockHashToBlockMap()
+     key0 = BlockHashWithGroupId(b"hash0")
+diff --git a/tests/v1/worker/test_gpu_model_runner_v2.py b/tests/v1/worker/test_gpu_model_runner_v2.py
+index eb05b9858a..49c6614219 100644
+--- a/tests/v1/worker/test_gpu_model_runner_v2.py
++++ b/tests/v1/worker/test_gpu_model_runner_v2.py
+@@ -38,6 +38,7 @@ def test_qsa_circular_group_uses_custom_slot_mapping(monkeypatch):
+         cache_config=SimpleNamespace(mamba_cache_mode="none"),
+     )
+     runner.model_state = SimpleNamespace(
++        set_kv_cache_config=lambda _kv_cache_config: None,
+         get_additional_cg_support=lambda: (),
+         num_new_sampled_tokens_per_step=1,
+     )
+diff --git a/tests/v1/worker/test_mamba_hybrid_model_state.py b/tests/v1/worker/test_mamba_hybrid_model_state.py
+index 0cdd91e0d7..81fd793ee1 100644
+--- a/tests/v1/worker/test_mamba_hybrid_model_state.py
++++ b/tests/v1/worker/test_mamba_hybrid_model_state.py
+@@ -13,6 +13,7 @@ from vllm.v1.attention.backends.recoverssm_metadata import (
+     RecoverSSMMetadata,
+     RecoverSSMPostprocessMetadata,
+ )
++from vllm.v1.kv_cache_interface import KVCacheConfig, KVCacheGroupSpec, MambaSpec
+ from vllm.v1.worker.gpu.model_states import mamba_hybrid
+ from vllm.v1.worker.gpu.model_states.mamba_hybrid import MambaHybridModelState
+ from vllm.v1.worker.gpu.model_states.recoverssm import RecoverSSMState
+@@ -58,6 +59,34 @@ def test_prepare_attn_forwards_positions(monkeypatch: pytest.MonkeyPatch) -> Non
+     assert build_attn_metadata.call_args.kwargs["positions"] is positions
+ 
+ 
++def test_add_request_seeds_state_idx_in_mamba_blocks() -> None:
++    """The align block table is laid out in Mamba blocks, which page unification
++    can make larger than cache_config.block_size."""
++    mamba_spec = MambaSpec(
++        shapes=((1, 1),),
++        dtypes=(torch.float32,),
++        block_size=880,
++        mamba_cache_mode="align",
++    )
++    kv_cache_config = KVCacheConfig(
++        num_blocks=1,
++        kv_cache_tensors=[],
++        kv_cache_groups=[KVCacheGroupSpec(["mamba.0"], mamba_spec)],
++    )
++    state = object.__new__(MambaHybridModelState)
++    state.cache_config = SimpleNamespace(block_size=16)
++    state._align_mode = True
++    state.rope_state = None
++    state.prompt_embeds_state = None
++    state.num_accepted_tokens_gpu = torch.ones(2, dtype=torch.int32)
++    state._mamba_state_idx_gpu = torch.zeros(2, dtype=torch.int32)
++    state.set_kv_cache_config(kv_cache_config)
++
++    state.add_request(1, SimpleNamespace(num_computed_tokens=107_360))
++
++    assert state._mamba_state_idx_gpu[1] == 121
++
++
+ @pytest.mark.skipif(not current_platform.is_cuda(), reason="Requires CUDA")
+ @pytest.mark.parametrize(("num_sampled", "expected_value"), [(0, 1), (3, 3)])
+ def test_postprocess_state_scalar_with_int32_mapping(
+diff --git a/tests/v1/worker/test_mamba_utils.py b/tests/v1/worker/test_mamba_utils.py
+index a162c39a86..7d050c4fec 100644
+--- a/tests/v1/worker/test_mamba_utils.py
++++ b/tests/v1/worker/test_mamba_utils.py
+@@ -510,9 +510,9 @@ def test_mamba_groups_support_different_state_specs():
+     assert mamba_groups == {gdn_spec: [0], short_conv_spec: [1]}
+ 
+     model_state = object.__new__(MambaHybridModelState)
+-    model_state._mamba_group_ids = []
+-    model_state._mamba_spec = None
+-    group_ids, representative_spec = model_state._get_mamba_group_info(kv_cache_config)
++    model_state._align_mode = True
++    model_state.set_kv_cache_config(kv_cache_config)
++    group_ids, representative_spec = model_state._get_mamba_group_info()
+     assert group_ids == [0, 1]
+     assert representative_spec is gdn_spec
+ 
+@@ -598,9 +598,9 @@ def test_mamba_groups_support_mixed_specs_in_uniform_group():
+ 
+     # The group is listed once per spec, so its id must not be repeated.
+     model_state = object.__new__(MambaHybridModelState)
+-    model_state._mamba_group_ids = []
+-    model_state._mamba_spec = None
+-    group_ids, representative_spec = model_state._get_mamba_group_info(kv_cache_config)
++    model_state._align_mode = True
++    model_state.set_kv_cache_config(kv_cache_config)
++    group_ids, representative_spec = model_state._get_mamba_group_info()
+     assert group_ids == [0]
+     assert representative_spec is gdn_spec
+ 
+diff --git a/vllm/envs.py b/vllm/envs.py
+index a3ef86d1b6..6fb6821d9d 100755
+--- a/vllm/envs.py
++++ b/vllm/envs.py
+@@ -107,6 +107,7 @@ if TYPE_CHECKING:
+     CMAKE_BUILD_TYPE: Literal["Debug", "Release", "RelWithDebInfo"] | None = None
+     VERBOSE: bool = False
+     VLLM_ALLOW_LONG_MAX_MODEL_LEN: bool = False
++    VLLM_QWEN4_PLE_MMAP: bool = False
+     VLLM_HTTP_TIMEOUT_KEEP_ALIVE: int = 5  # seconds
+     VLLM_MAX_N_SEQUENCES: int = 16384
+     VLLM_MAX_COMPLETION_PROMPTS: int = 1024
+@@ -1122,6 +1123,8 @@ environment_variables: dict[str, Callable[[], Any]] = {
+     "VLLM_TEST_FORCE_LOAD_FORMAT": lambda: os.getenv(
+         "VLLM_TEST_FORCE_LOAD_FORMAT", "dummy"
+     ),
++    # Local GB10 Qwen4Exp PLE row lookup from checkpoint files (eager TP1).
++    "VLLM_QWEN4_PLE_MMAP": lambda: os.getenv("VLLM_QWEN4_PLE_MMAP", "0") == "1",
+     # Queue size for fastsafetensors ParallelLoader pipelined weight
+     # loading. Peak load-time VRAM is roughly
+     # model_weights + (1 + queue_size) * shard_size.
+diff --git a/vllm/model_executor/layers/quantization/modelopt.py b/vllm/model_executor/layers/quantization/modelopt.py
+index e2ab74c369..5feda9d9be 100644
+--- a/vllm/model_executor/layers/quantization/modelopt.py
++++ b/vllm/model_executor/layers/quantization/modelopt.py
+@@ -1750,6 +1750,31 @@ class ModelOptMixedPrecisionConfig(ModelOptQuantConfigBase):
+                     quant_config=self.mxfp8_config,
+                     moe_config=layer.moe_config,
+                 )
++            if quant_algo == "FP8_BLOCK_SCALES":
++                from vllm.model_executor.layers.quantization.fp8 import (
++                    Fp8Config,
++                    Fp8MoEMethod,
++                )
++
++                group_sizes = {
++                    info.get("group_size", 128)
++                    for candidate in self._quantized_layer_prefix_candidates(prefix)
++                    for name, info in self.quantized_layers.items()
++                    if name == candidate or name.startswith(candidate + ".")
++                }
++                if len(group_sizes) != 1:
++                    raise ValueError(f"Ambiguous FP8 block size for {prefix}")
++                group_size = group_sizes.pop()
++                if not isinstance(group_size, int) or group_size <= 0:
++                    raise ValueError(f"Invalid FP8 block size for {prefix}")
++                return Fp8MoEMethod(
++                    Fp8Config(
++                        is_checkpoint_fp8_serialized=True,
++                        activation_scheme="dynamic",
++                        weight_block_size=[group_size, group_size],
++                    ),
++                    layer,
++                )
+             return None
+ 
+         return None
+diff --git a/vllm/models/qwen4_exp/nvidia/mtp.py b/vllm/models/qwen4_exp/nvidia/mtp.py
+index 932e16338f..ad6f7d32cb 100644
+--- a/vllm/models/qwen4_exp/nvidia/mtp.py
++++ b/vllm/models/qwen4_exp/nvidia/mtp.py
+@@ -14,6 +14,7 @@ The MTP draft model reuses the Qwen4Exp backbone (PLE/HC/MoE) but:
+ """
+ 
+ from collections.abc import Iterable
++from typing import Any
+ 
+ import regex as re
+ import torch
+@@ -28,6 +29,9 @@ from vllm.model_executor.layers.fused_moe.utils import (
+ from vllm.model_executor.layers.layernorm import GemmaRMSNorm
+ from vllm.model_executor.layers.linear import ColumnParallelLinear
+ from vllm.model_executor.layers.logits_processor import LogitsProcessor
++from vllm.model_executor.layers.quantization.modelopt import (
++    ModelOptMixedPrecisionConfig,
++)
+ from vllm.model_executor.layers.vocab_parallel_embedding import (
+     ParallelLMHead,
+     VocabParallelEmbedding,
+@@ -108,6 +112,21 @@ def _remap_mtp_weight_name(name: str) -> str | None:
+     return None
+ 
+ 
++def _remap_mtp_quantized_layers(
++    layers: dict[str, Any], start: int, count: int
++) -> dict[str, Any]:
++    """Align draft-local ModelOpt indices with Qwen4Exp's global layer names."""
++    remapped: dict[str, Any] = {}
++    for name, info in layers.items():
++        match = re.match(r"^(.*?mtp\.layers\.)(\d+)(\..*)$", name)
++        if match and int(match[2]) < count:
++            name = f"{match[1]}{start + int(match[2])}{match[3]}"
++        if name in remapped and remapped[name] != info:
++            raise ValueError(f"Conflicting MTP quantization entries for {name}")
++        remapped[name] = info
++    return remapped
++
++
+ def _make_draft_vllm_config(
+     vllm_config: VllmConfig,
+     mtp_start_layer_idx: int,
+@@ -122,6 +141,12 @@ def _make_draft_vllm_config(
+     # inject packed and ignored modules to the quantization config of draft model
+     if draft_quant_config is not None:
+         configure_quant_config(draft_quant_config, Qwen4ExpMTP)
++        if isinstance(draft_quant_config, ModelOptMixedPrecisionConfig):
++            draft_quant_config.quantized_layers = _remap_mtp_quantized_layers(
++                draft_quant_config.quantized_layers,
++                mtp_start_layer_idx,
++                speculative_config.draft_model_config.hf_text_config.mtp_num_hidden_layers,
++            )
+         ignored_layers = getattr(draft_quant_config, "ignored_layers", None)
+         if ignored_layers:
+             setattr(  # noqa: B010
+diff --git a/vllm/models/qwen4_exp/nvidia/ops/ple.py b/vllm/models/qwen4_exp/nvidia/ops/ple.py
+index 3d90773ded..d76e2705a7 100644
+--- a/vllm/models/qwen4_exp/nvidia/ops/ple.py
++++ b/vllm/models/qwen4_exp/nvidia/ops/ple.py
+@@ -330,6 +330,7 @@ def _ple_conv_kernel(
+     has_token_map,
+     num_reqs,
+     bs_iters,
++    state_idx_stride,
+     state_bs,
+     state_ws,
+     state_cs,
+@@ -386,7 +387,7 @@ def _ple_conv_kernel(
+         else:
+             slot_off = tl.full([], 0, tl.int32)
+ 
+-    sid = tl.load(state_idx_ptr + r).to(tl.int64)
++    sid = tl.load(state_idx_ptr + r * state_idx_stride).to(tl.int64)
+     state_ok = sid != NULL_STATE_ID
+     sid_safe = tl.where(state_ok, sid, 0)
+     if HAS_INIT:
+@@ -484,6 +485,7 @@ def _ple_conv_writeback_kernel(
+     has_init_ptr,
+     token_idx_ptr,
+     has_token_map,
++    state_idx_stride,
+     state_bs,
+     state_ws,
+     state_cs,
+@@ -501,7 +503,7 @@ def _ple_conv_writeback_kernel(
+     c_offs = pid_c * BLOCK_C + tl.arange(0, BLOCK_C)
+     c_mask = c_offs < C
+ 
+-    sid = tl.load(state_idx_ptr + r).to(tl.int64)
++    sid = tl.load(state_idx_ptr + r * state_idx_stride).to(tl.int64)
+     state_ok = sid != NULL_STATE_ID
+     if not state_ok:
+         return
+@@ -612,6 +614,8 @@ def ple_conv(
+ 
+     num_warps = 4 if mode == "prefill" else 8
+     launch_pdl = current_platform.is_arch_support_pdl()
++    # Pure-prefill indices can be a strided block-table column view.
++    state_idx_stride = state_indices.stride(0)
+ 
+     # Constexpr flags eliminate accesses to optional None arguments. Without a
+     # token map, state_indices is an unused but device-resident placeholder.
+@@ -628,6 +632,7 @@ def ple_conv(
+         token_indices is not None,
+         num_reqs,
+         binary_search_iters,
++        state_idx_stride,
+         state_bs,
+         state_ws,
+         state_cs,
+@@ -654,6 +659,7 @@ def ple_conv(
+             has_initial_states,
+             token_indices if token_indices is not None else state_indices,
+             token_indices is not None,
++            state_idx_stride,
+             state_bs,
+             state_ws,
+             state_cs,
+diff --git a/vllm/models/qwen4_exp/nvidia/ple_layer.py b/vllm/models/qwen4_exp/nvidia/ple_layer.py
+index 9d7091d7a2..c3331c4eb9 100644
+--- a/vllm/models/qwen4_exp/nvidia/ple_layer.py
++++ b/vllm/models/qwen4_exp/nvidia/ple_layer.py
+@@ -8,6 +8,7 @@ import torch
+ import torch.nn.functional as F
+ from torch import nn
+ 
++from vllm import envs
+ from vllm.config import CacheConfig, ModelConfig, VllmConfig, get_current_vllm_config
+ from vllm.forward_context import get_forward_context
+ from vllm.model_executor.layers.linear import MergedColumnParallelLinear
+@@ -47,6 +48,7 @@ from vllm.v1.attention.backends.short_conv_attn import (
+ 
+ from ..common.ple import PLEVocabParallelEmbedding
+ from .ops.ple import ple_conv, ple_gate, ple_ngram_ids
++from .ple_mmap import MmapPLEEmbedding
+ 
+ 
+ class Qwen4ExpPLEGroupedNorm(nn.Module):
+@@ -319,6 +321,20 @@ class Qwen4ExpNGramEmbedding(nn.Module):
+         )
+         divisor = int(config.make_ngram_vocab_size_divisible_by)
+         padded_vocab_size = ((total_vocab_size + divisor - 1) // divisor) * divisor
++        if envs.VLLM_QWEN4_PLE_MMAP:
++            runtime = get_current_vllm_config()
++            if runtime.parallel_config.tensor_parallel_size != 1:
++                raise ValueError("Local PLE mmap currently supports TP1 only")
++            if not runtime.model_config.enforce_eager:
++                raise ValueError("Local PLE mmap requires --enforce-eager")
++            self.ngram_embedding = MmapPLEEmbedding(
++                runtime.model_config.model,
++                f"{prefix}.ngram_embedding",
++                padded_vocab_size,
++                self.head_dim,
++                self.split_ngram_parts,
++            )
++            return
+         self.ngram_embedding = PLEVocabParallelEmbedding(
+             padded_vocab_size,
+             self.head_dim,
+@@ -514,6 +530,9 @@ class Qwen4ExpNGramEmbedding(nn.Module):
+                         f"expected {expected_shape}, got "
+                         f"{tuple(loaded_weight.shape)}"
+                     )
++                if isinstance(embedding, MmapPLEEmbedding):
++                    # Shape checked above; data is read directly from this shard.
++                    continue
+                 embedding.weight.weight_loader(
+                     embedding.weight,
+                     loaded_weight,
+diff --git a/vllm/v1/core/kv_cache_coordinator.py b/vllm/v1/core/kv_cache_coordinator.py
+index 34711d13cc..7867bd8f2b 100644
+--- a/vllm/v1/core/kv_cache_coordinator.py
++++ b/vllm/v1/core/kv_cache_coordinator.py
+@@ -152,6 +152,14 @@ class KVCacheCoordinator(ABC):
+             for i, kv_cache_group in enumerate(self.kv_cache_config.kv_cache_groups)
+         )
+ 
++        # Sparse retention must key off "some group's lookup applies the EAGLE
++        # drop", not "this group holds draft layers": the coordinator reconciles
++        # every group to ONE hit length, so a drop anywhere shortens the
++        # candidate offered to all of them. A group that kept only its own
++        # boundary state would then sit above every reachable candidate.
++        for manager in self.single_type_managers:
++            manager.lookup_drops_eagle_block = bool(self.eagle_group_ids)
++
+         # A positive retention interval must be a multiple of the base hit granularity
+         # (``scheduler_block_size``) to land on real cache-hit boundaries.
+         # 0 = keep only the latest replay boundary; None = dense;
+diff --git a/vllm/v1/core/kv_cache_utils.py b/vllm/v1/core/kv_cache_utils.py
+index 2fce0c0f4e..878cb0f119 100644
+--- a/vllm/v1/core/kv_cache_utils.py
++++ b/vllm/v1/core/kv_cache_utils.py
+@@ -2057,27 +2057,45 @@ def _get_packed_kv_cache_groups(
+         vllm_config,
+         kv_cache_spec,
+         groups,
+-        use_deepseek_v4_fallback=_is_deepseek_v4_eagle(vllm_config),
++        use_trailing_layer_fallback=_uses_trailing_mtp_layers(vllm_config),
+     )
+     _warn_if_unannotated_eagle_mamba(vllm_config, groups)
+     return groups
+ 
+ 
+-def _is_deepseek_v4_eagle(vllm_config: VllmConfig) -> bool:
++def _uses_trailing_mtp_layers(vllm_config: VllmConfig) -> bool:
++    """Whether the drafter's KV layers can be located positionally.
++
++    MTP drafters (DeepseekV4, Qwen3.5/Qwen3-Next, ...) reuse the target's own
++    decoder-layer architecture, so their specs carry no draft marker, but they
++    always register their KV layers after every target layer. That makes the
++    trailing-layer rule applicable wherever the groups partition the layers of
++    ``kv_cache_spec`` exactly (checked separately by the annotator).
++    """
+     spec_config = vllm_config.speculative_config
+     if spec_config is None or not spec_config.use_eagle():
+         return False
+-    model_config = vllm_config.model_config
+-    return (
+-        model_config is not None and model_config.hf_config.model_type == "deepseek_v4"
+-    )
++    return spec_config.method == "mtp"
++
++
++def _groups_partition_layers_exactly(
++    kv_cache_spec: dict[str, KVCacheSpec],
++    kv_cache_groups: list[KVCacheGroupSpec],
++) -> bool:
++    """Whether the groups cover every layer of ``kv_cache_spec`` exactly once.
++
++    The trailing-layer draft fallback is only meaningful when the last
++    registered layer is guaranteed to appear in exactly one group.
++    """
++    names = [name for group in kv_cache_groups for name in group.layer_names]
++    return len(names) == len(kv_cache_spec) and set(names) == set(kv_cache_spec)
+ 
+ 
+ def _annotate_eagle_groups(
+     vllm_config: VllmConfig,
+     kv_cache_spec: dict[str, KVCacheSpec],
+     kv_cache_groups: list[KVCacheGroupSpec],
+-    use_deepseek_v4_fallback: bool = False,
++    use_trailing_layer_fallback: bool = False,
+ ) -> None:
+     """Flag the KV cache groups that hold drafter attention layers.
+ 
+@@ -2090,14 +2108,15 @@ def _annotate_eagle_groups(
+        spec merging, wherever grouping happens to land. It is sufficient but
+        not necessary: a drafter whose spec is indistinguishable from the
+        target's cannot be found this way.
+-    2. Model-scoped positional fallback for DeepseekV4, whose MTP block reuses
+-       the target's own decoder layer and so carries no spec marker. Its draft
+-       attention layer is always the last registered layer, so flag whichever
+-       group holds it. This rule is only valid where the groups partition
+-       exactly the layers of ``kv_cache_spec``, which is true on the packed
+-       grouping path and not in general; other callers must leave
+-       ``use_deepseek_v4_fallback`` False. The caller gates this fallback on
+-       the configured model type.
++    2. Positional fallback for MTP drafters (DeepseekV4, Qwen3.5, ...), whose
++       MTP block reuses the target's own decoder layer and so carries no spec
++       marker. Their draft attention layers always register after every
++       target layer, so flag whichever group holds the last registered layer.
++       This rule is only valid where the groups partition exactly the layers
++       of ``kv_cache_spec``, which is re-checked here before applying it.
++       Note: if a model ever splits multiple trailing MTP layers across
++       several groups, this rule flags only the group holding the very last
++       layer and must be generalized.
+        FIXME(yifan): avoid/generalize this hacky check.
+ 
+     Args:
+@@ -2105,7 +2124,8 @@ def _annotate_eagle_groups(
+         kv_cache_spec: The kv cache spec of each attention layer, in layer
+             registration order. Only read by rule 2.
+         kv_cache_groups: Groups to annotate in place.
+-        use_deepseek_v4_fallback: Enable rule 2 for a DeepseekV4 packed group.
++        use_trailing_layer_fallback: Enable rule 2. Callers gate this on
++            ``_uses_trailing_mtp_layers``.
+     """
+     spec_config = vllm_config.speculative_config
+     if spec_config is None or not spec_config.use_eagle_block_drop():
+@@ -2118,7 +2138,9 @@ def _annotate_eagle_groups(
+         ):
+             group.is_eagle_group = True
+ 
+-    if not use_deepseek_v4_fallback:
++    if not use_trailing_layer_fallback:
++        return
++    if not _groups_partition_layers_exactly(kv_cache_spec, kv_cache_groups):
+         return
+     last_layer = next(reversed(kv_cache_spec))
+     for group in kv_cache_groups:
+@@ -2261,7 +2283,12 @@ def get_kv_cache_groups(
+             aligned = replace(spec, block_size=new_bs, page_size_padded=common_page)
+             groups.append(KVCacheGroupSpec([name], aligned))
+ 
+-    _annotate_eagle_groups(vllm_config, kv_cache_spec, groups)
++    _annotate_eagle_groups(
++        vllm_config,
++        kv_cache_spec,
++        groups,
++        use_trailing_layer_fallback=_uses_trailing_mtp_layers(vllm_config),
++    )
+     _warn_if_unannotated_eagle_mamba(vllm_config, groups)
+     return groups
+ 
+diff --git a/vllm/v1/core/sched/scheduler.py b/vllm/v1/core/sched/scheduler.py
+index dbc697a798..8df1e77f46 100644
+--- a/vllm/v1/core/sched/scheduler.py
++++ b/vllm/v1/core/sched/scheduler.py
+@@ -54,7 +54,7 @@ from vllm.v1.core.sched.request_queue import (
+ )
+ from vllm.v1.core.sched.utils import check_stop, remove_all
+ from vllm.v1.engine import EngineCoreEventType, EngineCoreOutput, EngineCoreOutputs
+-from vllm.v1.kv_cache_interface import KVCacheConfig, MambaSpec
++from vllm.v1.kv_cache_interface import KVCacheConfig, MambaSpec, iter_layer_specs
+ from vllm.v1.metrics.perf import ModelMetrics, PerfStats
+ from vllm.v1.metrics.stats import (
+     PrefixCacheStats,
+@@ -71,6 +71,21 @@ from vllm.v1.utils import record_function_or_nullcontext
+ logger = init_logger(__name__)
+ 
+ 
++def _mamba_state_block_size(kv_cache_config: KVCacheConfig) -> int | None:
++    """Read the recurrent grid even when different states share a uniform group."""
++    sizes = {
++        spec.block_size
++        for group in kv_cache_config.kv_cache_groups
++        for spec in iter_layer_specs(group.kv_cache_spec)
++        if isinstance(spec, MambaSpec)
++    }
++    assert len(sizes) <= 1, (
++        "mamba align scheduling requires a single mamba state block size, "
++        f"got {sorted(sizes)}"
++    )
++    return next(iter(sizes)) if sizes else None
++
++
+ class Scheduler(SchedulerInterface):
+     def __init__(
+         self,
+@@ -352,6 +367,18 @@ class Scheduler(SchedulerInterface):
+             and self.hash_block_size < self.block_size
+             and self.kv_cache_manager.coordinator.enable_partial_hash_hits
+         )
++        # The mamba "align" state grid is the mamba group's own block size.
++        # `cache_config.block_size` is the minimum over all groups and can be
++        # finer than the state grid in heterogeneous layouts (page-size
++        # matching, a drafter or attention group with a smaller block, or an
++        # explicit --block-size; see also #53142 for the worker-side sibling
++        # of this invariant). The worker checkpoints a state only where a
++        # chunk ENDS exactly on `MambaSpec.block_size` (`postprocess_mamba`),
++        # so `_mamba_block_aligned_split` must stop on that grid: on a finer
++        # generic grid the stops never coincide with it below the scheduler
++        # LCM, no state materializes, and the mamba group publishes no (or a
++        # misaligned) prefix hash.
++        self.mamba_state_block_size = _mamba_state_block_size(kv_cache_config)
+ 
+         # Counts of non-empty steps scheduled / processed. update_from_output
+         # is called once per scheduled step in FIFO order, so these stay in sync.
+@@ -417,7 +444,14 @@ class Scheduler(SchedulerInterface):
+         if start >= prefill_end:
+             return num_new_tokens
+ 
+-        block_size = self.cache_config.block_size
++        # Chunk ends are what the worker checkpoints a mamba state at, so the
++        # stops follow the mamba group's own grid, not the generic group
++        # minimum (see `mamba_state_block_size` in `__init__`).
++        block_size = (
++            self.mamba_state_block_size
++            if self.mamba_state_block_size is not None
++            else self.cache_config.block_size
++        )
+         # The last block-aligned position whose state can be cached. With
+         # Eagle, FullAttn prunes the last matching block, so back off one
+         # block to avoid a Mamba cache miss.
+@@ -452,9 +486,18 @@ class Scheduler(SchedulerInterface):
+             else 0
+         )
+         stops = (
+-            # Same invariant: a chunk starting mid-block stops at the boundary
+-            # rather than running past it.
+-            next_block_boundary if start % block_size != 0 else 0,
++            # Every crossed block boundary must end a chunk: the allocator
++            # hands out one mamba state column per step, so a chunk spanning
++            # k blocks leaves the k-1 interior state slots permanently null
++            # (a later prefix lookup asking for exactly those boundaries
++            # misses, or worse, a positional hash publishes a truncated
++            # state). Stop unconditionally even when the start is aligned —
++            # reachable whenever the token budget exceeds one block. Exempt:
++            # internal checkpointing materializes the interior states itself,
++            # so an aligned start may span blocks in that mode.
++            0
++            if use_internal_checkpoint and start % block_size == 0
++            else next_block_boundary,
+             # Never run past the last cacheable block boundary mid-chunk.
+             last_cache_position,
+             # Fine-grained hits: the prompt's partial-tail entry can only be
+diff --git a/vllm/v1/core/single_type_kv_cache_manager.py b/vllm/v1/core/single_type_kv_cache_manager.py
+index 4fb17bc79c..d4b563ae0e 100644
+--- a/vllm/v1/core/single_type_kv_cache_manager.py
++++ b/vllm/v1/core/single_type_kv_cache_manager.py
+@@ -38,6 +38,32 @@ from vllm.v1.request import Request
+ logger = init_logger(__name__)
+ 
+ 
++def reachable_hit_positions(
++    boundary_tokens: int,
++    alignment_tokens: int,
++    use_eagle: bool,
++) -> tuple[int, ...]:
++    """Token positions a cache hit can land on for one reachable boundary.
++
++    A lookup floors the boundary to ``alignment_tokens``. Under EAGLE the
++    full-attention finder additionally subtracts ``min(alignment_tokens,
++    its own block_size)`` and re-floors to the alignment, which lands on
++    exactly one alignment unit below the boundary either way. That lower
++    position is the ONLY one this group can be asked for until the request
++    decodes past the next boundary, so sparse-retention masks must treat both
++    as reachable: retaining only the boundary leaves every kept state above
++    every candidate a lookup can produce, and the reconciled hit is always 0.
++
++    Expressing the back-off in tokens rather than blocks is what makes this
++    correct when a group's block size differs from the alignment: one block is
++    the right step only when they are equal.
++    """
++    aligned = boundary_tokens // alignment_tokens * alignment_tokens
++    if not use_eagle:
++        return (aligned,)
++    return (aligned, max(aligned - alignment_tokens, 0))
++
++
+ class SingleTypeKVCacheManager(ABC):
+     """
+     An abstract base class for a manager that handle the kv cache management
+@@ -112,12 +138,17 @@ class SingleTypeKVCacheManager(ABC):
+         self.kv_cache_group_id = kv_cache_group_id
+         self._null_block = block_pool.null_block
+ 
+-        # Whether this group's prefix-cache hits drop the EAGLE/MTP lookahead
+-        # block. Only consulted by managers whose hit logic is sparse within an
+-        # aligned segment (SWA). Initialized lazily by the coordinator after
++        # Whether THIS group's own prefix-cache lookup drops the EAGLE/MTP
++        # lookahead block. Initialized lazily by the coordinator after
+         # determining the attention groups.
+         self.use_eagle = False
+ 
++        # Whether ANY group's lookup applies that drop, which is what sparse
++        # retention must key off: the coordinator reconciles every group to one
++        # hit length, so a drop anywhere shortens the candidate offered here.
++        # See ``reachable_hit_positions``. Set by the coordinator.
++        self.lookup_drops_eagle_block = False
++
+         # Partial-hit copy-on-write bookkeeping. Populated only by fine-grained
+         # managers (full attention, mamba "align"); harmlessly empty elsewhere.
+         self._partial_hit_reqs: dict[str, tuple[int, KVCacheBlock]] = {}
+@@ -478,7 +509,8 @@ class SingleTypeKVCacheManager(ABC):
+             end_block=num_full_blocks,
+             alignment_tokens=self.cache_hit_alignment_tokens,
+             kv_cache_spec=self.kv_cache_spec,
+-            use_eagle=self.use_eagle,
++            # Retention, unlike lookup, cares whether the drop happens anywhere.
++            use_eagle=self.use_eagle or self.lookup_drops_eagle_block,
+             retention_interval=retention_interval,
+             reachable_boundaries=reachable_boundaries,
+             dcp_world_size=self.dcp_world_size,
+@@ -1526,9 +1558,11 @@ class MambaManager(SingleTypeKVCacheManager):
+         mask = [False] * (end_block - start_block)
+ 
+         # (1) Segment-boundary states. A Mamba hit needs exactly the single
+-        # state block ending on the boundary (no window, and draft models have
+-        # no mamba layers, so no eagle shift). Block ``i`` ends at token
+-        # ``(i + 1) * block_size``.
++        # state block ending on the boundary (no window). Segment tails get no
++        # EAGLE shift: under the EAGLE drop the fixed point settles on the next
++        # lower tail, costing at most one segment of hit length, unlike the
++        # reachable boundaries below where the unshifted state is the only one.
++        # Block ``i`` ends at token ``(i + 1) * block_size``.
+         segment_tokens = None if retention_interval == 0 else retention_interval
+         if segment_tokens is not None:
+             per_segment = segment_tokens // block_size
+@@ -1544,12 +1578,15 @@ class MambaManager(SingleTypeKVCacheManager):
+         # (2) Reachable-boundary states: the replay boundary (``num_prompt - 1``,
+         # capped by ``get_computed_blocks``) and any shared-prefix junction, both
+         # of which segments would otherwise skip under sparse retention. A Mamba
+-        # hit needs exactly the single state block ending on the boundary.
++        # hit needs exactly the single state block ending on the reachable
++        # position, so retain one block per position rather than a run.
+         for boundary_tokens in reachable_boundaries:
+-            aligned = boundary_tokens // alignment_tokens * alignment_tokens
+-            boundary_block = aligned // block_size - 1
+-            if start_block <= boundary_block < end_block:
+-                mask[boundary_block - start_block] = True
++            for position in reachable_hit_positions(
++                boundary_tokens, alignment_tokens, use_eagle
++            ):
++                boundary_block = position // block_size - 1
++                if start_block <= boundary_block < end_block:
++                    mask[boundary_block - start_block] = True
+ 
+         return mask
+ 
+diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
+index 7dec923c0a..695df8abd8 100644
+--- a/vllm/v1/worker/gpu/model_runner.py
++++ b/vllm/v1/worker/gpu/model_runner.py
+@@ -607,6 +607,7 @@ class GPUModelRunner(LoRAModelRunnerMixin):
+             self.vllm_config,
+             self.device,
+         )
++        self.model_state.set_kv_cache_config(self.kv_cache_config)
+         additional_attn_cg_support = self.model_state.get_additional_cg_support()
+         attn_cg_support = attn_cg_support.narrow(*additional_attn_cg_support)
+         # The speculator clears the flag at load time when the checkpoint has
+diff --git a/vllm/v1/worker/gpu/model_states/interface.py b/vllm/v1/worker/gpu/model_states/interface.py
+index a5c8d6f4cf..60ac9d5787 100644
+--- a/vllm/v1/worker/gpu/model_states/interface.py
++++ b/vllm/v1/worker/gpu/model_states/interface.py
+@@ -126,6 +126,11 @@ class ModelState(ABC):
+     def apply_staged_writes(self) -> None:
+         return None
+ 
++    def set_kv_cache_config(self, kv_cache_config: KVCacheConfig) -> None:
++        """Hook run once the runner binds a KV cache config, before any
++        request is added. No-op by default."""
++        return None
++
+     def get_additional_cg_support(self) -> tuple[AttentionCGSupport, str | None]:
+         """Cudagraph support of attention groups this ModelState builds outside
+         ``init_attn_backend`` (e.g. encoder-only layers).
+diff --git a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+index 0ac3f2f63b..19f99d562d 100644
+--- a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
++++ b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+@@ -1,5 +1,6 @@
+ # SPDX-License-Identifier: Apache-2.0
+ # SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++import os
+ from dataclasses import dataclass
+ from typing import Any
+ 
+@@ -9,6 +10,7 @@ import torch.nn as nn
+ 
+ from vllm.config import VllmConfig
+ from vllm.config.compilation import CUDAGraphMode
++from vllm.logger import init_logger
+ from vllm.model_executor.layers.mamba.mamba_utils import MambaStateCopyFuncsByType
+ from vllm.triton_utils import tl, triton
+ from vllm.v1.attention.backends.gdn_attn import GDNAttentionMetadataBuilder
+@@ -35,6 +37,8 @@ from vllm.v1.worker.mamba_utils import (
+ )
+ from vllm.v1.worker.utils import AttentionGroup
+ 
++logger = init_logger(__name__)
++
+ 
+ @dataclass
+ class MambaHybridAttnMetadata(ModelSpecificAttnMetadata):
+@@ -112,30 +116,56 @@ class MambaHybridModelState(DefaultModelState):
+             self._mamba_spec: MambaSpec | None = None
+             self._mamba_state_copy_funcs: MambaStateCopyFuncsByType | None = None
+ 
++    def set_kv_cache_config(self, kv_cache_config: KVCacheConfig) -> None:
++        if not self._align_mode:
++            return
++        mamba_groups = get_mamba_groups(kv_cache_config)
++        mamba_spec = next(iter(mamba_groups))
++        assert all(
++            spec.block_size == mamba_spec.block_size
++            and spec.num_speculative_blocks == mamba_spec.num_speculative_blocks
++            and spec.mamba_cache_mode == mamba_spec.mamba_cache_mode
++            for spec in mamba_groups
++        ), "all mamba groups must share cache scheduling parameters"
++        self._mamba_group_ids = get_mamba_group_ids(mamba_groups)
++        self._mamba_spec = mamba_spec
++        if os.environ.get("QWEN_PREFIX_AUDIT") == "1":
++            logger.info(
++                "PREFIX_AUDIT groups=%s",
++                [
++                    {
++                        "id": i,
++                        "type": type(g.kv_cache_spec).__name__,
++                        "block_size": g.kv_cache_spec.block_size,
++                        "eagle": g.is_eagle_group,
++                        "layers": g.layer_names,
++                    }
++                    for i, g in enumerate(kv_cache_config.kv_cache_groups)
++                ],
++            )
++
+     def add_request(self, req_index: int, new_req_data: NewRequestData) -> None:
+         super().add_request(req_index, new_req_data)
+         # Must reset the speculative acceptance count in this idx which could be stale.
+         self.num_accepted_tokens_gpu[req_index].fill_(1)
+         if self._align_mode:
+             # Seed the running state block from the resumed/prefilled position.
++            # The align block table is laid out in Mamba blocks, which page
++            # unification can make larger than cache_config.block_size.
++            _, mamba_spec = self._get_mamba_group_info()
+             self._mamba_state_idx_gpu[req_index].fill_(
+-                (new_req_data.num_computed_tokens - 1) // self.cache_config.block_size
++                (new_req_data.num_computed_tokens - 1) // mamba_spec.block_size
+             )
++            if os.environ.get("QWEN_PREFIX_AUDIT") == "1":
++                logger.info(
++                    "PREFIX_AUDIT resume computed=%d mamba_block=%d actual_seed=%d",
++                    new_req_data.num_computed_tokens,
++                    mamba_spec.block_size,
++                    self._mamba_state_idx_gpu[req_index].item(),
++                )
+ 
+-    def _get_mamba_group_info(
+-        self, kv_cache_config: KVCacheConfig
+-    ) -> tuple[list[int], MambaSpec]:
+-        if self._mamba_spec is None:
+-            mamba_groups = get_mamba_groups(kv_cache_config)
+-            mamba_spec = next(iter(mamba_groups))
+-            assert all(
+-                spec.block_size == mamba_spec.block_size
+-                and spec.num_speculative_blocks == mamba_spec.num_speculative_blocks
+-                and spec.mamba_cache_mode == mamba_spec.mamba_cache_mode
+-                for spec in mamba_groups
+-            ), "all mamba groups must share cache scheduling parameters"
+-            self._mamba_group_ids = get_mamba_group_ids(mamba_groups)
+-            self._mamba_spec = mamba_spec
++    def _get_mamba_group_info(self) -> tuple[list[int], MambaSpec]:
++        assert self._mamba_spec is not None, "KV cache config not bound"
+         return self._mamba_group_ids, self._mamba_spec
+ 
+     def _ensure_align_ctx(
+@@ -198,7 +228,7 @@ class MambaHybridModelState(DefaultModelState):
+         num_reqs = input_batch.num_reqs
+         if num_reqs == 0:
+             return
+-        mamba_group_ids, mamba_spec = self._get_mamba_group_info(kv_cache_config)
++        mamba_group_ids, mamba_spec = self._get_mamba_group_info()
+         ctx = self._ensure_align_ctx(kv_cache_config, mamba_group_ids, block_tables)
+ 
+         # The state-advance + pre-copy kernels run every step; they fast-exit per
+@@ -288,7 +318,7 @@ class MambaHybridModelState(DefaultModelState):
+             num_decode_draft_tokens_cpu = torch.from_numpy(num_decode_draft_tokens_np)
+ 
+         if self._align_mode:
+-            mamba_group_ids, _ = self._get_mamba_group_info(kv_cache_config)
++            mamba_group_ids, _ = self._get_mamba_group_info()
+             aligned_index_builders = []
+             for group_idx, group_id in enumerate(mamba_group_ids):
+                 for group in attn_groups[group_id]:
+diff --git a/vllm/models/qwen4_exp/nvidia/ple_mmap.py b/vllm/models/qwen4_exp/nvidia/ple_mmap.py
+new file mode 100644
+index 0000000..aef02c2
+--- /dev/null
++++ b/vllm/models/qwen4_exp/nvidia/ple_mmap.py
+@@ -0,0 +1,113 @@
++# SPDX-License-Identifier: Apache-2.0
++# SPDX-FileCopyrightText: Copyright contributors to the vLLM project
++"""Local GB10 PLE lookup using the original checkpoint's file-backed FP8 rows."""
++
++import json
++import math
++import struct
++from pathlib import Path
++
++import numpy as np
++import regex as re
++import torch
++from torch import nn
++
++from vllm.logger import init_logger
++
++logger = init_logger(__name__)
++
++
++class MmapPLEEmbedding(nn.Module):
++    """Read only requested rows; preserve the checkpoint's bytes and global scale.
++
++    This local implementation deliberately requires eager TP1 execution. CUDA
++    graph capture cannot include its synchronous GPU-to-CPU index transfer.
++    """
++
++    def __init__(
++        self,
++        model_path: str,
++        prefix: str,
++        num_embeddings: int,
++        embedding_dim: int,
++        split_ngram_parts: int,
++    ) -> None:
++        super().__init__()
++        self.org_vocab_size = num_embeddings
++        self.embedding_dim = embedding_dim
++        self.shard_size = math.ceil(num_embeddings / split_ngram_parts)
++        self.register_buffer("weight_scale", torch.full((1,), float("nan")))
++        root = Path(model_path).resolve()
++        index = json.loads((root / "model.safetensors.index.json").read_text())
++        # The conditional-generation wrapper remaps this checkpoint prefix.
++        if prefix.startswith("language_model.model."):
++            prefix = "model.language_model." + prefix.removeprefix(
++                "language_model.model."
++            )
++        pattern = re.compile(re.escape(prefix) + r"\.shard_(\d+)\.weight$")
++        entries = {
++            name: filename
++            for name, filename in index["weight_map"].items()
++            if pattern.fullmatch(name)
++        }
++        if len(entries) != split_ngram_parts:
++            raise ValueError("PLE mmap requires every checkpoint embedding shard")
++        headers = {}
++        self.shards = {}
++        for name, filename in entries.items():
++            path = (root / filename).resolve()
++            if not path.is_relative_to(root):
++                raise ValueError("PLE shard path escapes model directory")
++            if path not in headers:
++                with path.open("rb") as handle:
++                    length = struct.unpack("<Q", handle.read(8))[0]
++                    if length > 100_000_000:
++                        raise ValueError("Unexpectedly large safetensors header")
++                    headers[path] = (8 + length, json.loads(handle.read(length)))
++            start, header = headers[path]
++            metadata = header[name]
++            match = pattern.fullmatch(name)
++            assert match is not None
++            shard_id = int(match.group(1))
++            rows = min(self.shard_size, num_embeddings - shard_id * self.shard_size)
++            if not 0 <= shard_id < split_ngram_parts or rows <= 0:
++                raise ValueError("Invalid PLE shard index")
++            if metadata["dtype"] != "F8_E4M3":
++                raise ValueError("PLE mmap currently requires F8_E4M3 checkpoint rows")
++            if metadata["shape"] != [rows, embedding_dim]:
++                raise ValueError(f"Invalid PLE shard shape: {name}")
++            lo, hi = metadata["data_offsets"]
++            if lo < 0 or hi - lo != rows * embedding_dim:
++                raise ValueError("Invalid PLE byte range")
++            if start + hi > path.stat().st_size:
++                raise ValueError("Truncated PLE checkpoint shard")
++            self.shards[shard_id] = np.memmap(
++                path,
++                mode="r",
++                dtype=np.uint8,
++                offset=start + lo,
++                shape=(rows, embedding_dim),
++            )
++        logger.info(
++            "PLE mmap: %d shards, %.3f GiB file-backed FP8; no resident table copy",
++            len(self.shards),
++            num_embeddings * embedding_dim / 2**30,
++        )
++
++    def forward(self, indices: torch.Tensor) -> torch.Tensor:
++        if torch.cuda.is_available() and torch.cuda.is_current_stream_capturing():
++            raise RuntimeError("PLE mmap requires --enforce-eager")
++        if not torch.isfinite(self.weight_scale).all():
++            raise RuntimeError("PLE mmap is missing the checkpoint global scale")
++        ids = indices.detach().to(device="cpu", dtype=torch.long).numpy().reshape(-1)
++        if ids.size and (ids.min() < 0 or ids.max() >= self.org_vocab_size):
++            raise IndexError("PLE lookup index outside vocabulary")
++        unique, inverse = np.unique(ids, return_inverse=True)
++        packed = np.empty((len(unique), self.embedding_dim), dtype=np.uint8)
++        shard_ids = unique // self.shard_size
++        for shard_id in np.unique(shard_ids):
++            mask = shard_ids == shard_id
++            packed[mask] = self.shards[int(shard_id)][unique[mask] % self.shard_size]
++        # Transfer packed FP8 bytes, preserving upstream GPU dequantization.
++        rows = torch.from_numpy(packed[inverse]).view(torch.float8_e4m3fn)
++        return rows.to(indices.device).reshape(*indices.shape, self.embedding_dim)

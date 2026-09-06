@@ -1,0 +1,38 @@
+{
+  "pass": true,
+  "scope": "Executed portable serve.sh against a capture executable; semantic engine flags match managed runtime. No second engine started.",
+  "flags": {
+    "--served-model-name": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+    "--tensor-parallel-size": "1",
+    "--dtype": "bfloat16",
+    "--quantization": "modelopt",
+    "--max-model-len": "262144",
+    "--max-num-seqs": "1",
+    "--max-num-batched-tokens": "2048",
+    "--enforce-eager": true,
+    "--kv-cache-dtype": "auto",
+    "--kv-cache-memory-bytes": "8G",
+    "--gpu-memory-utilization": 0.8,
+    "--enable-prefix-caching": true,
+    "--mamba-cache-mode": "align",
+    "--prefix-cache-retention-interval": "1600",
+    "--load-format": "safetensors",
+    "--safetensors-load-strategy": "lazy",
+    "--limit-mm-per-prompt": "{\"image\":1,\"video\":0}",
+    "--enable-auto-tool-choice": true,
+    "--tool-call-parser": "qwen3_coder",
+    "--reasoning-parser": "qwen3",
+    "--skip-mm-profiling": true,
+    "--mm-processor-kwargs": "{\"max_pixels\":1048576}",
+    "--generation-config": "vllm",
+    "--override-generation-config": "{\"max_new_tokens\":131072}",
+    "--speculative-config": "{\"method\":\"mtp\",\"num_speculative_tokens\":2}",
+    "--no-enable-flashinfer-autotune": true
+  },
+  "runtime_env": {
+    "MAX_JOBS": "1",
+    "NVCC_THREADS": "1",
+    "VLLM_QWEN4_PLE_MMAP": "1",
+    "VLLM_USE_DEEP_GEMM": "0"
+  }
+}

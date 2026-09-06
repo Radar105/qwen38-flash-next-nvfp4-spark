@@ -1,0 +1,5 @@
+test,source,input_tokens,completion_tokens,seconds,pass
+Raw ledger / revisions + arithmetic,raw-262k-ledger-192000.json,191978,370,110.21397857897682,True
+Raw ledger / revisions + arithmetic,raw-262k-ledger-250000.json,249978,760,151.83362548804143,True
+Raw three-needle retrieval,raw-262k-thinking-boundary.json,260834,210,162.1915363370208,True
+Managed three-needle retrieval,production-262k-thinking-boundary.json,260834,210,166.88712568901246,True

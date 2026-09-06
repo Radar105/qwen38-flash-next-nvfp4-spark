@@ -1,0 +1,69 @@
+[INFO] Installing environment for https://github.com/astral-sh/ruff-pre-commit.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for https://github.com/crate-ci/typos.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for https://github.com/pre-commit/mirrors-clang-format.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for https://github.com/shellcheck-py/shellcheck-py.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for https://github.com/astral-sh/uv-pre-commit.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for https://github.com/pre-commit/pre-commit-hooks.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for local.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for local.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for local.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for local.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+[INFO] Installing environment for local.
+[INFO] Once installed this environment will be reused.
+[INFO] This may take a few minutes...
+ruff check..........................................................................................Passed
+ruff format.........................................................................................Passed
+typos...............................................................................................Passed
+clang-format....................................................................(no files to check)Skipped
+markdownlint-cli2...............................................................(no files to check)Skipped
+Lint GitHub Actions workflow files..............................................(no files to check)Skipped
+shellcheck......................................................................(no files to check)Skipped
+pip-compile.....................................................................(no files to check)Skipped
+pip-compile-rocm................................................................(no files to check)Skipped
+pip-compile-xpu.................................................................(no files to check)Skipped
+pip-compile-cpu.................................................................(no files to check)Skipped
+pip-compile-docs................................................................(no files to check)Skipped
+check json......................................................................(no files to check)Skipped
+reformat test/nightly-torch.txt to be in sync with test/cuda.in.................(no files to check)Skipped
+Check auto-label rules still match real files...................................(no files to check)Skipped
+Run mypy for Python 3.10............................................................................Passed
+Lint PNG exports from excalidraw................................................(no files to check)Skipped
+Check SPDX headers..................................................................................Passed
+Check root lazy imports.............................................................................Passed
+Check for spaces in all filenames...................................................................Passed
+Update Dockerfile dependency graph..................................................................Passed
+Test non-root entrypoint wrapper................................................(no files to check)Skipped
+Check for forbidden imports.........................................................................Passed
+Prevent new 'torch.cuda' APIs call..................................................................Passed
+Validate configuration has default values and that each field has a docstring.......................Passed
+Validate docker/versions.json matches Dockerfile................................(no files to check)Skipped
+Check for boolean ops in with-statements............................................................Passed
+Rust - Normalize Cargo manifests with autoinherit...............................(no files to check)Skipped
+Rust - Sort Cargo manifest sections.............................................(no files to check)Skipped
+Rust - Format code..............................................................(no files to check)Skipped
+Suggestion..........................................................................................Passed
+- hook id: suggestion
+- duration: 0s
+
+To bypass all the pre-commit hooks, add --no-verify to git commit. To skip a specific hook, prefix the commit command with SKIP=<hook-id>.
+

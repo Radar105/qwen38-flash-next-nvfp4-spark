@@ -1,0 +1,52 @@
+[
+  {
+    "number": 53798,
+    "title": "[Bugfix] Seed align-mode Mamba state_idx in Mamba blocks",
+    "author": "ptorsten",
+    "author_url": "https://github.com/ptorsten",
+    "url": "https://github.com/vllm-project/vllm/pull/53798",
+    "head_sha": "243dfa6df183eafcc092f9812ebcbd9da2d3b98e",
+    "state": "open",
+    "merged_at": null
+  },
+  {
+    "number": 54076,
+    "title": "[Bugfix][V1] Use the Mamba cache group's block size for align-mode chunk splitting",
+    "author": "wickist",
+    "author_url": "https://github.com/wickist",
+    "url": "https://github.com/vllm-project/vllm/pull/54076",
+    "head_sha": "53930fe85c9e5dd78ec8cb7129c0210da40c843f",
+    "state": "open",
+    "merged_at": null
+  },
+  {
+    "number": 55390,
+    "title": "[Bugfix] Annotate MTP draft KV cache groups positionally on the hybrid grouping path",
+    "author": "Navjot10",
+    "author_url": "https://github.com/Navjot10",
+    "url": "https://github.com/vllm-project/vllm/pull/55390",
+    "head_sha": "28bc017bbe359f4c17793ee8a103c5d623c8f75f",
+    "state": "open",
+    "merged_at": null
+  },
+  {
+    "number": 54713,
+    "title": "[BugFix] Mamba sparse retention keeps a state below each boundary under EAGLE/MTP",
+    "author": "tobymao",
+    "author_url": "https://github.com/tobymao",
+    "url": "https://github.com/vllm-project/vllm/pull/54713",
+    "head_sha": "d3bdc5f7cc6011f0ad30b80b417aa6cdbb4217ab",
+    "state": "open",
+    "merged_at": null
+  },
+  {
+    "number": 55375,
+    "title": "[Bugfix][Qwen4Exp] fix state index strides in fused PLE conv",
+    "author": "peakcrosser7",
+    "author_url": "https://github.com/peakcrosser7",
+    "url": "https://github.com/vllm-project/vllm/pull/55375",
+    "head_sha": "288fec12f5c645dba6bd5593ebf8b2d3ec586e06",
+    "state": "closed",
+    "merged_at": "2026-09-05T14:02:20Z"
+  }
+]

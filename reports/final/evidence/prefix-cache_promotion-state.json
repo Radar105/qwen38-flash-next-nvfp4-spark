@@ -1,0 +1,10 @@
+{
+  "stage": "PASS: prefix caching promoted to262K production",
+  "time": "2026-09-05 18:19:19",
+  "context": 262144,
+  "mtp": 2,
+  "kv": "BF16 8GiB",
+  "mamba_cache_mode": "align",
+  "output_cap": 131072,
+  "thinking": true
+}

@@ -1,0 +1,63 @@
+{
+  "source": "https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4/resolve/fab0aecb760cec45227f6656abcaafa11abca87a/README.md",
+  "model_card_sha256": "e56b4bd5152323d771ea2212515a862bf51701eeed2227a05eebfa7ef8279acb",
+  "baseline": "Qwen3.8-Flash-Next-FP8",
+  "reasoning_effort": "xhigh",
+  "rows": [
+    {
+      "benchmark": "GPQA Diamond",
+      "FP8": 92.0,
+      "NVFP4": 91.5,
+      "delta_points": -0.5
+    },
+    {
+      "benchmark": "HLE",
+      "FP8": 34.7,
+      "NVFP4": 35.4,
+      "delta_points": 0.7
+    },
+    {
+      "benchmark": "\u03c4\u00b2-Bench Telecom",
+      "FP8": 90.8,
+      "NVFP4": 90.1,
+      "delta_points": -0.7
+    },
+    {
+      "benchmark": "MMMU Pro",
+      "FP8": 77.1,
+      "NVFP4": 78.3,
+      "delta_points": 1.2
+    },
+    {
+      "benchmark": "SciCode",
+      "FP8": 16.3,
+      "NVFP4": 18.8,
+      "delta_points": 2.5
+    },
+    {
+      "benchmark": "AA-LCR",
+      "FP8": 71.9,
+      "NVFP4": 74.1,
+      "delta_points": 2.2
+    },
+    {
+      "benchmark": "IFBench",
+      "FP8": 80.5,
+      "NVFP4": 81.0,
+      "delta_points": 0.5
+    },
+    {
+      "benchmark": "Omniscience",
+      "FP8": 28.1,
+      "NVFP4": 27.6,
+      "delta_points": -0.5
+    },
+    {
+      "benchmark": "Terminal-Bench 2.1",
+      "FP8": 83.3,
+      "NVFP4": 82.9,
+      "delta_points": -0.4
+    }
+  ],
+  "summary": "Near-parity with FP8 on the nine reported benchmarks; largest decrease0.7 points, largest increase2.5 points."
+}

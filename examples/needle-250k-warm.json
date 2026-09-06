@@ -1,0 +1,25 @@
+{
+  "measurement": {
+    "label": "250000-warm",
+    "usage": {
+      "prompt_tokens": 249986,
+      "total_tokens": 250201,
+      "completion_tokens": 215,
+      "prompt_tokens_details": null,
+      "completion_tokens_details": {
+        "reasoning_tokens": 168
+      }
+    },
+    "seconds": 7.993825529003516,
+    "ttft_seconds": 1.6816129684448242,
+    "prefill_seconds": 1.4497358949738555,
+    "cache_hit_tokens": 248000.0,
+    "cache_query_tokens": 249986.0,
+    "answer_pass": true,
+    "finish_reason": "stop",
+    "spec_draft_tokens": 152.0,
+    "spec_accepted_tokens": 140.0
+  },
+  "final_answer": "\n\n{\"north\": \"NORTH_COPPER_7813\", \"central\": \"CENTRAL_MAPLE_2946\", \"south\": \"SOUTH_QUARTZ_6502\"}",
+  "reasoning_text": "omitted"
+}

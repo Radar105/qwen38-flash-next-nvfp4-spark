@@ -1,0 +1,190 @@
+diff --git a/tests/v1/worker/test_gpu_model_runner_v2.py b/tests/v1/worker/test_gpu_model_runner_v2.py
+index 291cbbb3123b..47ff2874a80a 100644
+--- a/tests/v1/worker/test_gpu_model_runner_v2.py
++++ b/tests/v1/worker/test_gpu_model_runner_v2.py
+@@ -37,6 +37,7 @@ def test_qsa_circular_group_uses_custom_slot_mapping(monkeypatch):
+         cache_config=SimpleNamespace(mamba_cache_mode="none"),
+     )
+     runner.model_state = SimpleNamespace(
++        set_kv_cache_config=lambda _kv_cache_config: None,
+         get_additional_cg_support=lambda: (),
+         num_new_sampled_tokens_per_step=1,
+     )
+diff --git a/tests/v1/worker/test_mamba_hybrid_model_state.py b/tests/v1/worker/test_mamba_hybrid_model_state.py
+index 0cdd91e0d7b3..81fd793ee1c1 100644
+--- a/tests/v1/worker/test_mamba_hybrid_model_state.py
++++ b/tests/v1/worker/test_mamba_hybrid_model_state.py
+@@ -13,6 +13,7 @@
+     RecoverSSMMetadata,
+     RecoverSSMPostprocessMetadata,
+ )
++from vllm.v1.kv_cache_interface import KVCacheConfig, KVCacheGroupSpec, MambaSpec
+ from vllm.v1.worker.gpu.model_states import mamba_hybrid
+ from vllm.v1.worker.gpu.model_states.mamba_hybrid import MambaHybridModelState
+ from vllm.v1.worker.gpu.model_states.recoverssm import RecoverSSMState
+@@ -58,6 +59,34 @@ def test_prepare_attn_forwards_positions(monkeypatch: pytest.MonkeyPatch) -> Non
+     assert build_attn_metadata.call_args.kwargs["positions"] is positions
+ 
+ 
++def test_add_request_seeds_state_idx_in_mamba_blocks() -> None:
++    """The align block table is laid out in Mamba blocks, which page unification
++    can make larger than cache_config.block_size."""
++    mamba_spec = MambaSpec(
++        shapes=((1, 1),),
++        dtypes=(torch.float32,),
++        block_size=880,
++        mamba_cache_mode="align",
++    )
++    kv_cache_config = KVCacheConfig(
++        num_blocks=1,
++        kv_cache_tensors=[],
++        kv_cache_groups=[KVCacheGroupSpec(["mamba.0"], mamba_spec)],
++    )
++    state = object.__new__(MambaHybridModelState)
++    state.cache_config = SimpleNamespace(block_size=16)
++    state._align_mode = True
++    state.rope_state = None
++    state.prompt_embeds_state = None
++    state.num_accepted_tokens_gpu = torch.ones(2, dtype=torch.int32)
++    state._mamba_state_idx_gpu = torch.zeros(2, dtype=torch.int32)
++    state.set_kv_cache_config(kv_cache_config)
++
++    state.add_request(1, SimpleNamespace(num_computed_tokens=107_360))
++
++    assert state._mamba_state_idx_gpu[1] == 121
++
++
+ @pytest.mark.skipif(not current_platform.is_cuda(), reason="Requires CUDA")
+ @pytest.mark.parametrize(("num_sampled", "expected_value"), [(0, 1), (3, 3)])
+ def test_postprocess_state_scalar_with_int32_mapping(
+diff --git a/tests/v1/worker/test_mamba_utils.py b/tests/v1/worker/test_mamba_utils.py
+index a162c39a8695..7d050c4fec63 100644
+--- a/tests/v1/worker/test_mamba_utils.py
++++ b/tests/v1/worker/test_mamba_utils.py
+@@ -510,9 +510,9 @@ def test_mamba_groups_support_different_state_specs():
+     assert mamba_groups == {gdn_spec: [0], short_conv_spec: [1]}
+ 
+     model_state = object.__new__(MambaHybridModelState)
+-    model_state._mamba_group_ids = []
+-    model_state._mamba_spec = None
+-    group_ids, representative_spec = model_state._get_mamba_group_info(kv_cache_config)
++    model_state._align_mode = True
++    model_state.set_kv_cache_config(kv_cache_config)
++    group_ids, representative_spec = model_state._get_mamba_group_info()
+     assert group_ids == [0, 1]
+     assert representative_spec is gdn_spec
+ 
+@@ -598,9 +598,9 @@ def test_mamba_groups_support_mixed_specs_in_uniform_group():
+ 
+     # The group is listed once per spec, so its id must not be repeated.
+     model_state = object.__new__(MambaHybridModelState)
+-    model_state._mamba_group_ids = []
+-    model_state._mamba_spec = None
+-    group_ids, representative_spec = model_state._get_mamba_group_info(kv_cache_config)
++    model_state._align_mode = True
++    model_state.set_kv_cache_config(kv_cache_config)
++    group_ids, representative_spec = model_state._get_mamba_group_info()
+     assert group_ids == [0]
+     assert representative_spec is gdn_spec
+ 
+diff --git a/vllm/v1/worker/gpu/model_runner.py b/vllm/v1/worker/gpu/model_runner.py
+index 15005338d4f0..ccca131bfe57 100644
+--- a/vllm/v1/worker/gpu/model_runner.py
++++ b/vllm/v1/worker/gpu/model_runner.py
+@@ -595,6 +595,7 @@ def initialize_kv_cache(
+             self.vllm_config,
+             self.device,
+         )
++        self.model_state.set_kv_cache_config(self.kv_cache_config)
+         additional_attn_cg_support = self.model_state.get_additional_cg_support()
+         attn_cg_support = attn_cg_support.narrow(*additional_attn_cg_support)
+         # The speculator clears the flag at load time when the checkpoint has
+diff --git a/vllm/v1/worker/gpu/model_states/interface.py b/vllm/v1/worker/gpu/model_states/interface.py
+index cd1b5b64da7d..ab5b8333c9c0 100644
+--- a/vllm/v1/worker/gpu/model_states/interface.py
++++ b/vllm/v1/worker/gpu/model_states/interface.py
+@@ -126,6 +126,11 @@ def remove_request(self, req_id: str) -> None:
+     def apply_staged_writes(self) -> None:
+         return None
+ 
++    def set_kv_cache_config(self, kv_cache_config: KVCacheConfig) -> None:
++        """Hook run once the runner binds a KV cache config, before any
++        request is added. No-op by default."""
++        return None
++
+     def get_additional_cg_support(self) -> tuple[AttentionCGSupport, str | None]:
+         """Cudagraph support of attention groups this ModelState builds outside
+         ``init_attn_backend`` (e.g. encoder-only layers).
+diff --git a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+index 9564120f2338..7acae2de652b 100644
+--- a/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
++++ b/vllm/v1/worker/gpu/model_states/mamba_hybrid.py
+@@ -112,30 +112,35 @@ def __init__(
+             self._mamba_spec: MambaSpec | None = None
+             self._mamba_state_copy_funcs: MambaStateCopyFuncsByType | None = None
+ 
++    def set_kv_cache_config(self, kv_cache_config: KVCacheConfig) -> None:
++        if not self._align_mode:
++            return
++        mamba_groups = get_mamba_groups(kv_cache_config)
++        mamba_spec = next(iter(mamba_groups))
++        assert all(
++            spec.block_size == mamba_spec.block_size
++            and spec.num_speculative_blocks == mamba_spec.num_speculative_blocks
++            and spec.mamba_cache_mode == mamba_spec.mamba_cache_mode
++            for spec in mamba_groups
++        ), "all mamba groups must share cache scheduling parameters"
++        self._mamba_group_ids = get_mamba_group_ids(mamba_groups)
++        self._mamba_spec = mamba_spec
++
+     def add_request(self, req_index: int, new_req_data: NewRequestData) -> None:
+         super().add_request(req_index, new_req_data)
+         # Must reset the speculative acceptance count in this idx which could be stale.
+         self.num_accepted_tokens_gpu[req_index].fill_(1)
+         if self._align_mode:
+             # Seed the running state block from the resumed/prefilled position.
++            # The align block table is laid out in Mamba blocks, which page
++            # unification can make larger than cache_config.block_size.
++            _, mamba_spec = self._get_mamba_group_info()
+             self._mamba_state_idx_gpu[req_index].fill_(
+-                (new_req_data.num_computed_tokens - 1) // self.cache_config.block_size
++                (new_req_data.num_computed_tokens - 1) // mamba_spec.block_size
+             )
+ 
+-    def _get_mamba_group_info(
+-        self, kv_cache_config: KVCacheConfig
+-    ) -> tuple[list[int], MambaSpec]:
+-        if self._mamba_spec is None:
+-            mamba_groups = get_mamba_groups(kv_cache_config)
+-            mamba_spec = next(iter(mamba_groups))
+-            assert all(
+-                spec.block_size == mamba_spec.block_size
+-                and spec.num_speculative_blocks == mamba_spec.num_speculative_blocks
+-                and spec.mamba_cache_mode == mamba_spec.mamba_cache_mode
+-                for spec in mamba_groups
+-            ), "all mamba groups must share cache scheduling parameters"
+-            self._mamba_group_ids = get_mamba_group_ids(mamba_groups)
+-            self._mamba_spec = mamba_spec
++    def _get_mamba_group_info(self) -> tuple[list[int], MambaSpec]:
++        assert self._mamba_spec is not None, "KV cache config not bound"
+         return self._mamba_group_ids, self._mamba_spec
+ 
+     def _ensure_align_ctx(
+@@ -198,7 +203,7 @@ def preprocess_state(
+         num_reqs = input_batch.num_reqs
+         if num_reqs == 0:
+             return
+-        mamba_group_ids, mamba_spec = self._get_mamba_group_info(kv_cache_config)
++        mamba_group_ids, mamba_spec = self._get_mamba_group_info()
+         ctx = self._ensure_align_ctx(kv_cache_config, mamba_group_ids, block_tables)
+ 
+         # The state-advance + pre-copy kernels run every step; they fast-exit per
+@@ -286,7 +291,7 @@ def prepare_attn(
+             num_decode_draft_tokens_cpu = torch.from_numpy(num_decode_draft_tokens_np)
+ 
+         if self._align_mode:
+-            mamba_group_ids, _ = self._get_mamba_group_info(kv_cache_config)
++            mamba_group_ids, _ = self._get_mamba_group_info()
+             aligned_index_builders = []
+             for group_idx, group_id in enumerate(mamba_group_ids):
+                 for group in attn_groups[group_id]:

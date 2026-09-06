@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+.env
+model.safetensors*
+*.safetensors
+prefix-check-*/
+*.bundle

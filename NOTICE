@@ -1,0 +1,3 @@
+Includes patches to vLLM, copyright its respective contributors, under Apache License2.0.
+Local integration code and documentation:2026 project contributors.
+See CREDITS.md for individual upstream patches. Model weights and AA data retain their own terms.

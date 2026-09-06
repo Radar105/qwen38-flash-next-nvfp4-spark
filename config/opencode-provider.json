@@ -1,0 +1,75 @@
+{
+  "provider": {
+    "qwen38-flash-next-nvfp4-vllm-local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "NVIDIA Qwen3.8 Flash Next NVFP4",
+      "options": {
+        "baseURL": "http://127.0.0.1:8092/v1",
+        "maxRetries": 3,
+        "timeout": 1200000,
+        "chunkTimeout": 1200000,
+        "headerTimeout": 1200000
+      },
+      "models": {
+        "nvidia/Qwen3.8-Flash-Next-NVFP4": {
+          "name": "NVIDIA Qwen3.8 Flash Next NVFP4 | 262K | MTP2 | BF16 KV | APC",
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 131072
+          },
+          "reasoning_budget": 4096,
+          "vision": true,
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "options": {
+            "temperature": 1.0,
+            "top_p": 0.95,
+            "top_k": 20,
+            "presence_penalty": 0,
+            "repetition_penalty": 1.0,
+            "reasoningEffort": "medium",
+            "chat_template_kwargs": {
+              "enable_thinking": true
+            },
+            "max_tokens": null
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low",
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              }
+            },
+            "medium": {
+              "reasoningEffort": "medium",
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              }
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh",
+              "chat_template_kwargs": {
+                "enable_thinking": true
+              }
+            },
+            "high": {
+              "disabled": true
+            },
+            "none": {
+              "disabled": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

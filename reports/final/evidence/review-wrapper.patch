@@ -1,0 +1,530 @@
+diff --git a/vllm_cli.py b/vllm_cli.py
+index b374ba4..c0e876f 100755
+--- a/vllm_cli.py
++++ b/vllm_cli.py
+@@ -15,9 +15,11 @@ import os
+ import re
+ import shlex
+ import shutil
++import struct
+ import sys
+ import time
+ from datetime import datetime
++from functools import lru_cache
+ from pathlib import Path
+ from typing import Any
+ 
+@@ -29,7 +31,7 @@ if _PKG_ROOT not in sys.path:
+ from llmkit.util import eprint, expand_path, run
+ from llmkit.http import http_json as _http_json, health_ok as _health_ok, list_models as _list_models
+ from llmkit.metrics import metrics_text as _metrics_text, metric_samples, metric_sum
+-from llmkit.gpu import gpu_memory_mb, gpu_state
++from llmkit.gpu import gpu_memory_mb as _gpu_memory_mb, gpu_state
+ from llmkit.proc import tmux_kill_session, tmux_session_names, docker_ps, stop_container
+ from llmkit.vllm_config import (
+     CONFIG_DIR,
+@@ -47,16 +49,19 @@ from llmkit.opencode import OPENCODE_CONFIG, read_opencode, write_opencode
+ 
+ DEFAULT_TIMEOUT = 3.0
+ MANAGED_OPENCODE_PROVIDERS = {
+-    "mia-qwen36-27b-nvfp4-docker-vllm-local",
+-    "nvidia-qwen36-27b-nvfp4-vllm-local",
+-    "nvidia-qwen36-27b-nvfp4-mtp-vllm-local",
++    "laguna-s-2.1-nvfp4-vllm-local",
+     "qwen36-35b-a3b-nvfp4-mtp-vllm-local",
+-    "qwen36-27b-nvfp4-vllm-local",
++    "qwen38-27b-nvfp4-vllm-local",
+     "qwen-agentworld-35b-a3b-vllm-local",
+ }
+ VLLM_MEMORY_RESERVE_MB = int(os.environ.get("VLLM_CLI_MEMORY_RESERVE_MB", "8192"))
+ VLLM_VENV = Path(os.environ.get("VLLM_CLI_VENV", "/home/user/venvs/vllm"))
+-VLLM_VERSION = os.environ.get("VLLM_CLI_INSTALL_VERSION", "0.22.1")
++# The canonical venv is an editable mainline build. Launch from its checkout;
++# /home/user contains a separate ~/vllm cache directory which otherwise
++# shadows the real root package as an empty namespace. Pinned compatibility
++# profiles set their own source_dir.
++VLLM_SRC = Path(os.environ.get("VLLM_CLI_SRC", "/home/user/src/vllm-upstream"))
++VLLM_VERSION = os.environ.get("VLLM_CLI_INSTALL_VERSION", "0.27.1")
+ 
+ 
+ # vLLM endpoints answer slower than llama-server under load; keep the
+@@ -107,11 +112,11 @@ def stop_managed(config: Config, keep: str | None = None) -> list[str]:
+ 
+ 
+ def running_managed_by_port(config: Config) -> dict[int, list[str]]:
+-    by_port: dict[int, list[str]] = {}
++    by_port: dict[int, set[str]] = {}
+     for p in config.profiles.values():
+         if health_ok(p.local_url):
+-            by_port.setdefault(p.port, []).append(instance_name(config, p))
+-    return by_port
++            by_port.setdefault(p.port, set()).add(instance_name(config, p))
++    return {port: sorted(names) for port, names in by_port.items()}
+ 
+ 
+ def tmux_session(config: Config, profile: Profile) -> str:
+@@ -124,8 +129,20 @@ def log_path(config: Config, profile: Profile) -> Path:
+     return Path(config.server.logs_dir) / f"{safe}.log"
+ 
+ 
+-def vllm_python() -> Path:
+-    return VLLM_VENV / "bin" / "python"
++def profile_venv(profile: Profile | None = None) -> Path:
++    if profile is not None and profile.venv:
++        return Path(profile.venv)
++    return VLLM_VENV
++
++
++def profile_source_dir(profile: Profile | None = None) -> Path:
++    if profile is not None and profile.source_dir:
++        return Path(profile.source_dir)
++    return VLLM_SRC
++
++
++def vllm_python(profile: Profile | None = None) -> Path:
++    return profile_venv(profile) / "bin" / "python"
+ 
+ 
+ def speculative_config(config: Config, profile: Profile) -> str | None:
+@@ -188,21 +205,22 @@ def vllm_serve_args(config: Config, profile: Profile, chat_template: str | None)
+ def build_vllm_command(config: Config, profile: Profile) -> tuple[dict[str, str], list[str]]:
+     target = Path(config.server.models_root) / profile.target_basename
+     path_parts = [
+-        str(VLLM_VENV / "bin"),
++        str(profile_venv(profile) / "bin"),
+         "/usr/local/cuda/bin",
+         os.environ.get("PATH", ""),
+     ]
+     env = {
+         "HF_HOME": config.server.hf_cache,
+-        "HF_TOKEN": os.environ.get("HF_TOKEN", ""),
+         "PATH": os.pathsep.join(p for p in path_parts if p),
+         "TMPDIR": "/home/user/vllm/tmp",
+         "VLLM_CACHE_ROOT": "/home/user/vllm/cache",
+         "XDG_CACHE_HOME": "/home/user/vllm/xdg_cache",
+     }
++    if os.environ.get("HF_TOKEN"):
++        env["HF_TOKEN"] = os.environ["HF_TOKEN"]
+     env.update(profile.extra_env)
+     cmd = [
+-        str(vllm_python()),
++        str(vllm_python(profile)),
+         "-m", "vllm.entrypoints.openai.api_server",
+         "--model", str(target),
+     ]
+@@ -226,10 +244,12 @@ def build_docker_command(config: Config, profile: Profile) -> list[str]:
+         "--gpus", "all",
+         "-e", "VLLM_TARGET_DEVICE=cuda",
+         "-e", "HF_HOME=/root/.cache/huggingface",
+-        "-e", f"HF_TOKEN={os.environ.get('HF_TOKEN', '')}",
+         "-v", f"{config.server.hf_cache}:/root/.cache/huggingface",
+         "-v", f"{config.server.models_root}:{DOCKER_MODELS_MOUNT}:ro",
+     ]
++    if os.environ.get("HF_TOKEN"):
++        # Pass through from the host without putting the secret in argv/logs.
++        cmd.extend(["-e", "HF_TOKEN"])
+     for key, value in sorted(profile.extra_env.items()):
+         cmd.extend(["-e", f"{key}={value}"])
+     chat_template = None
+@@ -242,9 +262,13 @@ def build_docker_command(config: Config, profile: Profile) -> list[str]:
+     return cmd
+ 
+ 
+-def format_env_command(env: dict[str, str], cmd: list[str]) -> str:
++def format_env_command(env: dict[str, str], cmd: list[str], *, redact_secrets: bool = False) -> str:
+     parts = ["env"]
+-    parts.extend(f"{k}={v}" for k, v in sorted(env.items()))
++    secret_keys = {"HF_TOKEN", "HUGGING_FACE_HUB_TOKEN"}
++    parts.extend(
++        f"{k}={'<present>' if redact_secrets and k in secret_keys and v else v}"
++        for k, v in sorted(env.items())
++    )
+     parts.extend(cmd)
+     return " ".join(shlex.quote(c) for c in parts)
+ 
+@@ -277,29 +301,119 @@ def parse_size_mb(value: str) -> int:
+     return max(1, int(amount / (1024 * 1024)))
+ 
+ 
++def qwen4_mapped_ple_mb(target: Path, profile: Profile) -> int:
++    """Exclude only verified file-backed FP8 PLE tables from resident weights.
++
++    Keep the normal runtime reserve for page cache and lookup staging. Invalid
++    or incomplete metadata retains the conservative full-checkpoint estimate.
++    """
++    if profile.extra_env.get("VLLM_QWEN4_PLE_MMAP") != "1":
++        return 0
++    try:
++        root = target.resolve()
++        config = json.loads((root / "config.json").read_text())
++        parts = int(config["text_config"]["split_ngram_parts"])
++        index = json.loads((root / "model.safetensors.index.json").read_text())
++        pattern = re.compile(
++            r"model\.language_model\.layers\.\d+\.ple\.ple_embedding\."
++            r"ngram_embedding\.shard_(\d+)\.weight$"
++        )
++        entries = [(name, file) for name, file in index["weight_map"].items()
++                   if pattern.fullmatch(name)]
++        if len(entries) != parts or {
++            int(pattern.fullmatch(name).group(1)) for name, _ in entries
++        } != set(range(parts)):
++            return 0
++        headers = {}
++        mapped_bytes = 0
++        for name, filename in entries:
++            path = (root / filename).resolve()
++            if not path.is_relative_to(root):
++                return 0
++            if path not in headers:
++                with path.open("rb") as handle:
++                    length = struct.unpack("<Q", handle.read(8))[0]
++                    if length > 100_000_000:
++                        return 0
++                    headers[path] = (8 + length, json.loads(handle.read(length)))
++            offset, header = headers[path]
++            item = header[name]
++            lo, hi = item["data_offsets"]
++            shape = item["shape"]
++            if (item["dtype"] != "F8_E4M3" or len(shape) != 2
++                    or lo < 0 or hi - lo != shape[0] * shape[1]
++                    or offset + hi > path.stat().st_size):
++                return 0
++            mapped_bytes += hi - lo
++        return mapped_bytes // (1024 * 1024)
++    except (OSError, ValueError, KeyError, TypeError, struct.error):
++        return 0
++
++
+ def estimate_required_memory_mb(config: Config, profile: Profile) -> int:
+     target, assistant = profile_paths(config, profile)
+-    weights = path_size_mb(target)
++    weights = max(0, path_size_mb(target) - qwen4_mapped_ple_mb(target, profile))
+     if assistant:
+         weights += path_size_mb(assistant)
+     explicit_kv = parse_size_mb(profile.kv_cache_memory_bytes)
+     return int(weights * 1.08) + explicit_kv + VLLM_MEMORY_RESERVE_MB
+ 
+ 
+-def required_memory_guard_ok(config: Config, profile: Profile) -> bool:
+-    row = gpu_memory_mb().get(0)
+-    if not row:
+-        eprint(f"refusing to start {profile.name}: GPU0 memory telemetry unavailable")
++@lru_cache(maxsize=1)
++def _uses_gb10_uma() -> bool:
++    try:
++        from nvitop import Device
++        return any("GB10" in device.name() for device in Device.all())
++    except Exception:
+         return False
++
++
++def gpu_memory_mb() -> dict[int, dict[str, int]]:
++    """GB10 shares host RAM: use reclaimable availability, not bare MemFree."""
++    if not _uses_gb10_uma():
++        return _gpu_memory_mb()
++    try:
++        fields = {}
++        for line in Path("/proc/meminfo").read_text().splitlines():
++            key, value = line.split(":", 1)
++            if key in {"MemTotal", "MemAvailable"}:
++                amount, unit = value.split()
++                if unit != "kB":
++                    return {}
++                fields[key] = int(amount)
++        total, available = fields["MemTotal"], fields["MemAvailable"]
++        if not 0 <= available <= total or total <= 0:
++            return {}
++        return {0: {"total": total // 1024, "free": available // 1024,
++                    "used": (total - available) // 1024}}
++    except (OSError, ValueError, KeyError):
++        return {}
++
++
++def required_memory_guard_ok(config: Config, profile: Profile, *,
++                             wait_timeout: float = 0.0) -> bool:
+     required = estimate_required_memory_mb(config, profile)
+-    free = row["free"]
+-    if free >= required:
+-        return True
+-    eprint(
+-        f"refusing to start {profile.name}: GPU0 has {free} MiB free, "
+-        f"needs about {required} MiB for weights/KV/reserve"
+-    )
+-    return False
++    deadline = time.monotonic() + wait_timeout
++    announced = False
++    while True:
++        row = gpu_memory_mb().get(0)
++        if not row:
++            eprint(f"refusing to start {profile.name}: GPU0 memory telemetry unavailable")
++            return False
++        free = row["free"]
++        if free >= required:
++            return True
++        if required > row["total"] or time.monotonic() >= deadline:
++            eprint(
++                f"refusing to start {profile.name}: GPU0 has {free} MiB available, "
++                f"needs about {required} MiB for weights/KV/reserve"
++            )
++            return False
++        if not announced:
++            eprint(f"waiting up to {wait_timeout:g}s for memory release: "
++                   f"{free} MiB available, {required} MiB required")
++            announced = True
++        time.sleep(min(2.0, max(0.0, deadline - time.monotonic())))
+ 
+ 
+ def cap_gpu_memory_utilization(profile: Profile) -> bool:
+@@ -309,11 +423,17 @@ def cap_gpu_memory_utilization(profile: Profile) -> bool:
+         return False
+     total = row["total"]
+     free = row["free"]
+-    max_util = (free - VLLM_MEMORY_RESERVE_MB) / total if total > 0 else 0
++    # With explicit KV bytes, required_memory_guard_ok() already accounts for
++    # weights + KV + reserve. vLLM uses gpu_memory_utilization only as an
++    # admission threshold in this mode, so do not subtract the reserve again
++    # and unnecessarily mutate the configured ratio during a fast restart.
++    explicit_kv = parse_size_mb(profile.kv_cache_memory_bytes)
++    reserve = 0 if explicit_kv else VLLM_MEMORY_RESERVE_MB
++    max_util = (free - reserve) / total if total > 0 else 0
+     if max_util <= 0:
+         eprint(
+             f"refusing to start {profile.name}: GPU0 has {free} MiB free, "
+-            f"reserve is {VLLM_MEMORY_RESERVE_MB} MiB"
++            f"reserve is {reserve} MiB"
+         )
+         return False
+     if profile.gpu_memory_utilization > max_util:
+@@ -328,11 +448,11 @@ def cap_gpu_memory_utilization(profile: Profile) -> bool:
+ 
+ 
+ def port_guard_ok(config: Config, profile: Profile) -> bool:
+-    session = tmux_session(config, profile)
++    current = instance_name(config, profile)
+     conflicts = [
+         name
+         for name in running_managed_by_port(config).get(profile.port, [])
+-        if name != session
++        if name != current
+     ]
+     if not conflicts:
+         return True
+@@ -344,8 +464,8 @@ def port_guard_ok(config: Config, profile: Profile) -> bool:
+     return False
+ 
+ 
+-def venv_guard_ok() -> bool:
+-    python = vllm_python()
++def venv_guard_ok(profile: Profile | None = None) -> bool:
++    python = vllm_python(profile)
+     if python.exists():
+         return True
+     eprint(f"missing vLLM venv python: {python}")
+@@ -463,6 +583,12 @@ def start_docker(args: argparse.Namespace, config: Config, profile: Profile) ->
+         print(" ".join(shlex.quote(c) for c in build_docker_command(config, profile)))
+         return 0
+ 
++    if profile.container_name in running_container_names() and health_ok(profile.local_url):
++        ids = [m.get("id") for m in models(profile.local_url) if isinstance(m, dict)]
++        if profile.served_model_name in ids:
++            print(f"{profile.name} already ready at {profile.local_url}/v1")
++            return 0
++
+     if args.keep_others and not port_guard_ok(config, profile):
+         return 1
+     if profile.stop_other_managed and not args.keep_others:
+@@ -473,7 +599,7 @@ def start_docker(args: argparse.Namespace, config: Config, profile: Profile) ->
+ 
+     if not port_guard_ok(config, profile):
+         return 1
+-    if not required_memory_guard_ok(config, profile):
++    if not required_memory_guard_ok(config, profile, wait_timeout=120.0):
+         return 1
+     if not cap_gpu_memory_utilization(profile):
+         return 1
+@@ -546,7 +672,7 @@ def cmd_start(args: argparse.Namespace, config: Config) -> int:
+         return start_docker(args, config, profile)
+ 
+     if args.dry_run:
+-        if not venv_guard_ok():
++        if not venv_guard_ok(profile):
+             return 1
+         if not required_memory_guard_ok(config, profile):
+             return 1
+@@ -555,10 +681,10 @@ def cmd_start(args: argparse.Namespace, config: Config) -> int:
+         if not port_guard_ok(config, profile):
+             return 1
+         env, cmd = build_vllm_command(config, profile)
+-        print(format_env_command(env, cmd))
++        print(format_env_command(env, cmd, redact_secrets=True))
+         return 0
+ 
+-    if not venv_guard_ok():
++    if not venv_guard_ok(profile):
+         return 1
+ 
+     if args.keep_others and not port_guard_ok(config, profile):
+@@ -574,7 +700,7 @@ def cmd_start(args: argparse.Namespace, config: Config) -> int:
+     if not port_guard_ok(config, profile):
+         return 1
+ 
+-    if not required_memory_guard_ok(config, profile):
++    if not required_memory_guard_ok(config, profile, wait_timeout=120.0):
+         return 1
+ 
+     if not cap_gpu_memory_utilization(profile):
+@@ -586,10 +712,10 @@ def cmd_start(args: argparse.Namespace, config: Config) -> int:
+     session = tmux_session(config, profile)
+ 
+     print("starting:")
+-    print(format_env_command(env, cmd))
++    print(format_env_command(env, cmd, redact_secrets=True))
+     start_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+     shell_cmd = (
+-        "cd /home/user/src/vllm-upstream && "
++        f"cd {shlex.quote(str(profile_source_dir(profile)))} && "
+         f"exec {format_env_command(env, cmd)} >> {shlex.quote(str(logfile))} 2>&1"
+     )
+     result = run(["tmux", "new-session", "-d", "-s", session, "bash", "-lc", shell_cmd], capture=True, check=False)
+@@ -684,7 +810,6 @@ def cmd_smoke(args: argparse.Namespace, config: Config) -> int:
+         "max_tokens": args.max_tokens,
+         "temperature": 0,
+         "stream": False,
+-        "chat_template_kwargs": {"enable_thinking": False},
+     }
+     start = time.time()
+     data = http_json(f"{profile.local_url}/v1/chat/completions", payload, timeout=args.timeout)
+@@ -692,13 +817,18 @@ def cmd_smoke(args: argparse.Namespace, config: Config) -> int:
+     if not isinstance(data, dict) or "choices" not in data:
+         eprint(json.dumps(data, indent=2) if data is not None else "no response")
+         return 1
+-    message = data["choices"][0].get("message", {})
++    choice = data["choices"][0]
++    message = choice.get("message", {})
+     content = message.get("content")
+-    if content is None:
+-        content = message.get("reasoning", "")
+     usage = data.get("usage", {})
+     print(f"model={profile.served_model_name} elapsed_s={elapsed:.2f} usage={usage}")
++    if not isinstance(content, str) or not content.strip():
++        eprint("smoke failed: response has no final text; reasoning alone is not a completion")
++        return 1
+     print(content)
++    if choice.get("finish_reason") == "length":
++        eprint("smoke failed: response exhausted its output budget before completion")
++        return 1
+     return 0
+ 
+ 
+@@ -724,10 +854,20 @@ def cmd_bench(args: argparse.Namespace, config: Config) -> int:
+         eprint(f"{profile.name} is not healthy on {profile.local_url}")
+         return 1
+ 
+-    prompt = args.prompt or (
+-        f"{prompt_words(args.prompt_words)}\n\n"
+-        "Write a concise technical assessment with concrete tradeoffs."
+-    )
++    if args.prompt_file:
++        try:
++            prompt = sys.stdin.read() if args.prompt_file == "-" else Path(args.prompt_file).expanduser().read_text()
++        except OSError as exc:
++            eprint(f"cannot read benchmark prompt {args.prompt_file!r}: {exc}")
++            return 1
++        if not prompt:
++            eprint("benchmark prompt is empty")
++            return 1
++    else:
++        prompt = args.prompt or (
++            f"{prompt_words(args.prompt_words)}\n\n"
++            "Write a concise technical assessment with concrete tradeoffs."
++        )
+     before = metrics_text(profile.local_url)
+     payload = {
+         "model": profile.served_model_name,
+@@ -805,11 +945,13 @@ def cmd_sync_opencode(args: argparse.Namespace, config: Config) -> int:
+         for p in config.profiles.values()
+         if p.opencode_enabled and p.provider_name
+     }
+-    stale_provider_names = sorted(
+-        (set(providers) & MANAGED_OPENCODE_PROVIDERS) - enabled_provider_names
+-    )
+-    for provider_name in stale_provider_names:
+-        del providers[provider_name]
++    stale_provider_names: list[str] = []
++    if getattr(args, "prune", False):
++        stale_provider_names = sorted(
++            (set(providers) & MANAGED_OPENCODE_PROVIDERS) - enabled_provider_names
++        )
++        for provider_name in stale_provider_names:
++            del providers[provider_name]
+     updates = 0
+     for name, profile in config.profiles.items():
+         if not profile.opencode_enabled or not profile.provider_name:
+@@ -836,7 +978,17 @@ def cmd_sync_opencode(args: argparse.Namespace, config: Config) -> int:
+             model_cfg["modalities"] = {"input": ["text", "image"], "output": ["text"]}
+         existing = providers.get(profile.provider_name, {})
+         merged = {**existing, **provider_cfg}
+-        merged["models"] = {profile.served_model_name: model_cfg}
++        merged["options"] = {**existing.get("options", {}), **provider_cfg["options"]}
++        # Refresh managed metadata without erasing explicitly tuned request
++        # options, variants, or other models in an existing provider.
++        existing_models = existing.get("models", {})
++        merged["models"] = {
++            **existing_models,
++            profile.served_model_name: {
++                **existing_models.get(profile.served_model_name, {}),
++                **model_cfg,
++            },
++        }
+         providers[profile.provider_name] = merged
+         updates += 1
+     backup = write_opencode(data)
+@@ -859,8 +1011,10 @@ def cmd_doctor(args: argparse.Namespace, config: Config) -> int:
+     if python.exists():
+         result = run([
+             str(python), "-c",
+-            "import importlib.metadata as md; import vllm; print(md.version('vllm'))",
+-        ], capture=True, check=False)
++            "import importlib.metadata as md; import vllm; "
++            "import vllm.entrypoints.openai.api_server as api; "
++            "print(md.version('vllm')); print(vllm.__file__); print(api.__file__)",
++        ], capture=True, check=False, cwd=profile_source_dir())
+         version = (result.stdout or result.stderr).strip()
+         print(f"vllm_import: {'ok' if result.returncode == 0 else 'failed'} {version}")
+         if result.returncode != 0:
+@@ -923,12 +1077,14 @@ def build_parser() -> argparse.ArgumentParser:
+     smoke = sub.add_parser("smoke")
+     smoke.add_argument("profile")
+     smoke.add_argument("--prompt", default="Return exactly: VLLM_OK")
+-    smoke.add_argument("--max-tokens", type=int, default=64)
+-    smoke.add_argument("--timeout", type=float, default=120.0)
++    smoke.add_argument("--max-tokens", type=int, default=3072)
++    smoke.add_argument("--timeout", type=float, default=300.0)
+     smoke.set_defaults(func=cmd_smoke)
+     bench = sub.add_parser("bench")
+     bench.add_argument("profile")
+-    bench.add_argument("--prompt")
++    bench_prompt = bench.add_mutually_exclusive_group()
++    bench_prompt.add_argument("--prompt")
++    bench_prompt.add_argument("--prompt-file", metavar="PATH", help="Read the prompt from PATH, or - for stdin")
+     bench.add_argument("--prompt-words", type=int, default=1200)
+     bench.add_argument("--max-tokens", type=int, default=512)
+     bench.add_argument("--temperature", type=float, default=0.0)
+@@ -938,7 +1094,16 @@ def build_parser() -> argparse.ArgumentParser:
+     pull = sub.add_parser("pull")
+     pull.add_argument("profile")
+     pull.set_defaults(func=cmd_pull)
+-    sub.add_parser("sync-opencode").set_defaults(func=cmd_sync_opencode)
++    sync_opencode = sub.add_parser(
++        "sync-opencode",
++        help="Add or update enabled OpenCode providers without deleting existing providers",
++    )
++    sync_opencode.add_argument(
++        "--prune",
++        action="store_true",
++        help="Explicitly delete managed vLLM providers that are not currently enabled",
++    )
++    sync_opencode.set_defaults(func=cmd_sync_opencode)
+     sub.add_parser("doctor").set_defaults(func=cmd_doctor)
+     install = sub.add_parser("install-venv", help="Create/update the native vLLM virtualenv")
+     install.add_argument("--package", help=f"Package spec to install (default: vllm=={VLLM_VERSION})")
