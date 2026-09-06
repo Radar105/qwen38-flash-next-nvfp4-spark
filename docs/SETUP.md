@@ -5,9 +5,23 @@ Python 3.12. The measured driver was580.173.02. Use a dedicated environment and
 stop other large inference engines before building or loading this model.
 Keep enough disk space for the original checkpoint, source build and caches.
 
-The original build used four compilation jobs and took about 54 minutes.
-Runtime FlashInfer JIT uses one job because the loaded model leaves little
-unified-memory headroom. Do not confuse those two settings.
+The historical build used four compilation jobs and took about 54 minutes.
+The rebuild recipe uses one compilation job and one runtime JIT job to bound
+unified-memory pressure; its build duration has not been measured.
+
+## One entry point
+
+After host preparation, run `bash scripts/rebuild.sh`. It verifies the recipe,
+builds in a fresh `QWEN_SETUP_ROOT`, downloads the pinned original checkpoint,
+verifies every model file, starts the raw server, and checks the exact catalog
+and correct cold/warm prefix reuse. It remains attached to the server; use a
+dedicated tmux session for long builds. Ctrl-C stops only that server.
+
+Set `QWEN_MODEL_DIR` to an existing checkpoint directory to reuse and hash-check
+it in place without making a copy or downloading over it. Choose a new
+`QWEN_SETUP_ROOT` if a source or environment already exists. `--check` is a
+read-only recipe/prerequisite check and does not claim a rebuild passed. See
+[BASELINE.md](BASELINE.md) for the pinned recovery contract.
 
 ## 0. Prepare a clean headless host
 
@@ -34,15 +48,17 @@ bash scripts/setup.sh
 ```
 
 `setup.sh` checks out the exact vLLM base, checks and applies the complete patch,
-installs the pinned source requirements, and builds the native extensions. It
+installs `baseline/requirements.lock` with required package hashes, and builds
+the native extensions without dependency re-resolution. It
 refuses to reuse an existing source or venv directory. It does not reset or
 overwrite an existing installation.
 
 The source requirements include Torch2.13.0, torchvision0.28.0,
 torchaudio2.11.0 and FlashInfer0.6.18. FlashInfer cubin0.6.18 comes from the
 official FlashInfer wheel index referenced by vLLM's pinned requirements.
-The measured environment is listed in `requirements-observed.txt` for reference.
-Do not blindly install that whole inventory into another environment.
+`baseline/constraints.txt` records current package versions. The dependency
+lock resolves only the pinned vLLM build/runtime requirements against those
+constraints. `requirements-observed.txt` remains the earlier historical inventory.
 
 A separate fresh-machine build was not repeated for publication. Patch
 application and final source hashes were checked in an isolated checkout;
@@ -138,7 +154,10 @@ qwen38-flash-next-nvfp4-vllm-local/nvidia/Qwen3.8-Flash-Next-NVFP4
 ```
 
 The config advertises262144 context and131072 output, leaves`max_tokens:null`,
-keeps thinking enabled, and sets general/header/chunk timeouts to 1200000ms.
+keeps thinking enabled with xhigh default and `preserve_thinking:true`, and
+sets general/header/chunk timeouts to 1200000ms. For OpenCode 1.18.29,
+`bash scripts/opencode-full-images.sh` disables attachment resizing for that
+launch while merging existing inline settings. See [VISION_REASONING.md](VISION_REASONING.md).
 Restart or refresh an already-open client if its model label is cached.
 
 OpenCode used a normal OpenAI-compatible route. Our local wrapper/TUI was

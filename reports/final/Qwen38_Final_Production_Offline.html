@@ -457,7 +457,7 @@ Source: [Artificial Analysis model page](https://artificialanalysis.ai/models/qw
 
 All performance numbers are measured single runs, not confidence intervals. Prefix tests use exact audited-key and tool-argument checks. Cold controls use new cache_salt namespaces; cached results require positive counters. Prefix caching reduces repeated prefill, not all generation latency. Changed early prompts or eviction can cause misses. Full context does not guarantee multiple resident conversations.
 
-The official cache PRs remain unmerged backports at the saved revisions; source/base hashes and patches are included. The original PLE mmap reader and ModelOpt MTP repairs remain local modifications. The initial corrupted Solara report remains unexplained; later output-cap truncation was separately demonstrated. No source artifact is attributed to Solara without evidence.
+The official cache PRs remain unmerged backports at the saved revisions; source/base hashes and patches are included. The original PLE mmap reader and ModelOpt MTP repairs remain local modifications. The initial corrupted agent report remains unexplained; later output-cap truncation was separately demonstrated. No source artifact is attributed to agent without evidence.
 
 The original NVIDIA checkpoint is pinned at [fab0aecb760cec45227f6656abcaafa11abca87a](https://huggingface.co/nvidia/Qwen3.8-Flash-Next-NVFP4/tree/fab0aecb760cec45227f6656abcaafa11abca87a). Source base is [7fbd44cbe](https://github.com/vllm-project/vllm/tree/7fbd44cbe0a90b9c8fd3a94a0f0401ac4b1bc719).
 

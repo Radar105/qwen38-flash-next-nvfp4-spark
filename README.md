@@ -20,6 +20,25 @@ environment, model and cache paths, available memory, ports and existing
 services before building or launching. Have it apply the documented patches,
 download the pinned weights, then verify model responses and prefix-cache reuse.
 
+## September 6 rebuild baseline
+
+The current baseline includes native 4096×4096 image processing, multi-image
+history, xhigh thinking by default, reasoning retention, and a 4 GiB shared-memory
+image cache. The [baseline record](docs/BASELINE.md) includes the exact model
+revision, all 23 patched source files, a hash-locked dependency set, and checksums
+for every original model file. No model or environment copy is required.
+
+After your agent checks the host, one entry point builds, downloads or reuses
+verified weights, starts the engine, and checks correct cold/warm retrieval:
+
+```bash
+bash scripts/rebuild.sh
+```
+
+Use `bash scripts/rebuild.sh --check` for read-only prerequisites and recipe
+integrity. A fresh rebuild was not run for this update; the running configuration
+and retained vision/reasoning tests were verified.
+
 ## vLLM configuration reference
 
 The script below shows the tested settings and the repository's example
@@ -32,8 +51,8 @@ set -euo pipefail
 setup_root="${QWEN_SETUP_ROOT:-$HOME/qwen38-spark}"
 mkdir -p "$setup_root/cache" "$setup_root/xdg-cache" "$setup_root/hf-cache" "$setup_root/tmp"
 export HF_HOME="$setup_root/hf-cache" TMPDIR="$setup_root/tmp"
-export PATH="$setup_root/venv/bin:/usr/local/cuda/bin:$PATH"
-export CUDA_HOME=/usr/local/cuda
+export CUDA_HOME="${CUDA_HOME:-/usr/local/cuda}"
+export PATH="$setup_root/venv/bin:$CUDA_HOME/bin:$PATH"
 export MAX_JOBS=1
 export NVCC_THREADS=1
 export VLLM_USE_DEEP_GEMM=0
@@ -44,25 +63,37 @@ export HF_HUB_OFFLINE=1
 export TOKENIZERS_PARALLELISM=false
 cd "$setup_root/src/vllm"
 exec "$setup_root/venv"/bin/vllm serve \
-  "$setup_root/models/nvidia-Qwen3.8-Flash-Next-NVFP4" \
+  "${QWEN_MODEL_DIR:-$setup_root/models/nvidia-Qwen3.8-Flash-Next-NVFP4}" \
   --served-model-name nvidia/Qwen3.8-Flash-Next-NVFP4 \
   --host "${QWEN_HOST:-127.0.0.1}" --port "${QWEN_PORT:-8092}" \
   --tensor-parallel-size 1 --dtype bfloat16 --quantization modelopt \
   --max-model-len 262144 --max-num-seqs 1 --max-num-batched-tokens 2048 \
   --enforce-eager --kv-cache-dtype auto --kv-cache-memory-bytes 8G \
-  --gpu-memory-utilization 0.80 --enable-prefix-caching --mamba-cache-mode align --prefix-cache-retention-interval 1600 \
+  --gpu-memory-utilization 0.8 --enable-prefix-caching --mamba-cache-mode align --prefix-cache-retention-interval 1600 \
   --load-format safetensors --safetensors-load-strategy lazy \
-  --limit-mm-per-prompt '{"image":1,"video":0}' \
+  --limit-mm-per-prompt '{}' \
   --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser qwen3 \
-  --skip-mm-profiling --mm-processor-kwargs '{"max_pixels":1048576}' \
+  --skip-mm-profiling --mm-processor-cache-type shm \
+  --mm-processor-cache-gb 4 --mm-shm-cache-max-object-size-mb 512 \
   --generation-config vllm --override-generation-config '{"max_new_tokens":131072}' \
   --speculative-config '{"method":"mtp","num_speculative_tokens":2}' \
-  --no-enable-flashinfer-autotune
+  --no-enable-flashinfer-autotune \
+  --default-chat-template-kwargs '{"enable_thinking":true,"preserve_thinking":true,"reasoning_effort":"xhigh"}'
 ```
 
 The launch uses 262144 context, MTP2, BF16 KV 8GiB and prefix caching with
 align/retention1600. The model-card output ceiling is 131072 tokens, bounded
 by remaining context.
+
+## Three hours of sustained use
+
+The operator reports three hours of continuous agentic OpenCode work, including
+visual tasks and long conversations across multiple compactions. Across 392
+active decode log windows in that period, median generation was **22.7 tok/s**,
+reaching **35.1 tok/s**. The latest reported prefix-cache hit rate was **94.7%**
+and image-cache hit rate **97.5%**. These are production log-window measurements
+and cumulative cache rates, not isolated per-request benchmarks.
+[Anonymous measurements](baseline/operational-speed.json).
 
 ## Measured speeds
 
@@ -108,15 +139,15 @@ Model weights are downloaded from NVIDIA. They are not stored in this repo.
 
 ## Downloads
 
-- [All charts, reports, scripts and examples](https://github.com/Radar105/qwen38-flash-next-nvfp4-spark/releases/download/v2026.09.05-apc.1/Qwen38_2026-09-05_All_Charts_and_Setup.zip)
-- [Offline Git bundle](https://github.com/Radar105/qwen38-flash-next-nvfp4-spark/releases/download/v2026.09.05-apc.1/Qwen38_2026-09-05_Repository.bundle)
-- [Release files](https://github.com/Radar105/qwen38-flash-next-nvfp4-spark/releases/tag/v2026.09.05-apc.1)
+- [All charts, reports, scripts and examples](https://github.com/Radar105/qwen38-flash-next-nvfp4-spark/releases/download/v2026.09.06-baseline/Qwen38_2026-09-06_Baseline.zip)
+- [Offline Git bundle](https://github.com/Radar105/qwen38-flash-next-nvfp4-spark/releases/download/v2026.09.06-baseline/Qwen38_2026-09-06_Repository.bundle)
+- [Release files](https://github.com/Radar105/qwen38-flash-next-nvfp4-spark/releases/tag/v2026.09.06-baseline)
 
 The ZIP contains the final and earlier chart sets in separate folders. The Git
 bundle contains a clean source snapshot and can be cloned without a network connection:
 
 ```bash
-git clone Qwen38_2026-09-05_Repository.bundle qwen38-flash-next-nvfp4-spark
+git clone Qwen38_2026-09-06_Repository.bundle qwen38-flash-next-nvfp4-spark
 ```
 
 ## Configuration
@@ -133,15 +164,23 @@ git clone Qwen38_2026-09-05_Repository.bundle qwen38-flash-next-nvfp4-spark
 | Speculation | Native MTP, 2 draft tokens |
 | Execution | Eager, TP1, one sequence, batch2048 |
 | Prefix cache | Enabled, Mamba align, retention interval1600 |
-| Thinking | Medium default; low/xhigh available |
+| Thinking | xhigh default, enabled, reasoning retained; low/medium available |
 | PLE | Original FP8 table, local mmap reader |
-| Vision | One image, max_pixels1048576; video disabled |
+| Vision | Native processor limits, 4096×4096 tested, multi-image history |
+| Image cache | Shared memory 4 GiB, maximum object 512 MiB |
 
 The checkpoint is mixed precision. Main routed experts are NVFP4; PLE and MTP
 routed experts use their original FP8 formats; other layers include BF16.
 The KV dtype is separate from weight quantization.
 
 ## What passed
+
+- Operator-confirmed sustained agentic OpenCode use, including long
+  conversations across multiple compactions and visual workflows.
+
+- September 6: native 4096×4096 input with 16384 image tokens; PNG/JPEG/WebP,
+  four-image API history, five-image OpenCode history, image tools, xhigh and
+  retained reasoning. [Details and limits](docs/VISION_REASONING.md).
 
 - 21 raw prefix-cache requests, including 20K/64K/250K cold and warm retrieval,
   changed suffixes, shorter branches, interleaved requests, tools and follow-up.

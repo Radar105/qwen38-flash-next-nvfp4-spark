@@ -1,0 +1,33 @@
+{
+  "recorded_date": "2026-09-06",
+  "model": "nvidia/Qwen3.8-Flash-Next-NVFP4",
+  "model_revision": "fab0aecb760cec45227f6656abcaafa11abca87a",
+  "vllm_base": "7fbd44cbe0a90b9c8fd3a94a0f0401ac4b1bc719",
+  "vllm_observed": "0.28.1rc1.dev442+g7fbd44cbe.d20260905",
+  "platform": "Linux aarch64 / NVIDIA GB10",
+  "python": "3.12.3",
+  "cuda_toolkit": "13.0",
+  "context": 262144,
+  "output_ceiling": 131072,
+  "kv_dtype": "auto (effective BF16)",
+  "kv_bytes": 8589934592,
+  "mtp_tokens": 2,
+  "prefix_caching": true,
+  "mamba_cache_mode": "align",
+  "prefix_cache_retention_interval": 1600,
+  "max_num_seqs": 1,
+  "max_num_batched_tokens": 2048,
+  "tensor_parallel_size": 1,
+  "enforce_eager": true,
+  "limit_mm_per_prompt": {},
+  "mm_processor_cache_type": "shm",
+  "mm_processor_cache_gb": 4,
+  "mm_shm_cache_max_object_size_mb": 512,
+  "skip_mm_profiling": true,
+  "chat_template_defaults": {
+    "enable_thinking": true,
+    "preserve_thinking": true,
+    "reasoning_effort": "xhigh"
+  },
+  "fresh_rebuild_tested": false
+}

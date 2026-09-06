@@ -1,0 +1,146 @@
+[
+  {
+    "image_count": 2,
+    "images": [
+      {
+        "size": [
+          1600,
+          1200
+        ],
+        "url_type": "data"
+      },
+      {
+        "size": [
+          1600,
+          1200
+        ],
+        "url_type": "data"
+      }
+    ],
+    "assistant_reasoning_lengths": [],
+    "reasoning_effort": "xhigh",
+    "chat_template_kwargs": {
+      "enable_thinking": true,
+      "preserve_thinking": true
+    }
+  },
+  {
+    "image_count": 2,
+    "images": [
+      {
+        "size": [
+          1600,
+          1200
+        ],
+        "url_type": "data"
+      },
+      {
+        "size": [
+          1600,
+          1200
+        ],
+        "url_type": "data"
+      }
+    ],
+    "assistant_reasoning_lengths": [
+      229
+    ],
+    "reasoning_effort": "xhigh",
+    "chat_template_kwargs": {
+      "enable_thinking": true,
+      "preserve_thinking": true
+    }
+  },
+  {
+    "image_count": 4,
+    "images": [
+      {
+        "size": [
+          1600,
+          1200
+        ],
+        "url_type": "data"
+      },
+      {
+        "size": [
+          1600,
+          1200
+        ],
+        "url_type": "data"
+      },
+      {
+        "size": [
+          1024,
+          768
+        ],
+        "url_type": "data"
+      },
+      {
+        "size": [
+          768,
+          768
+        ],
+        "url_type": "data"
+      }
+    ],
+    "assistant_reasoning_lengths": [
+      229,
+      68
+    ],
+    "reasoning_effort": "xhigh",
+    "chat_template_kwargs": {
+      "enable_thinking": true,
+      "preserve_thinking": true
+    }
+  },
+  {
+    "image_count": 5,
+    "images": [
+      {
+        "size": [
+          1600,
+          1200
+        ],
+        "url_type": "data"
+      },
+      {
+        "size": [
+          1600,
+          1200
+        ],
+        "url_type": "data"
+      },
+      {
+        "size": [
+          1024,
+          768
+        ],
+        "url_type": "data"
+      },
+      {
+        "size": [
+          768,
+          768
+        ],
+        "url_type": "data"
+      },
+      {
+        "size": [
+          4096,
+          4096
+        ],
+        "url_type": "data"
+      }
+    ],
+    "assistant_reasoning_lengths": [
+      229,
+      68,
+      215
+    ],
+    "reasoning_effort": "xhigh",
+    "chat_template_kwargs": {
+      "enable_thinking": true,
+      "preserve_thinking": true
+    }
+  }
+]

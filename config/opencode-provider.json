@@ -19,7 +19,6 @@
             "context": 262144,
             "output": 131072
           },
-          "reasoning_budget": 4096,
           "vision": true,
           "modalities": {
             "input": [
@@ -36,9 +35,10 @@
             "top_k": 20,
             "presence_penalty": 0,
             "repetition_penalty": 1.0,
-            "reasoningEffort": "medium",
+            "reasoningEffort": "xhigh",
             "chat_template_kwargs": {
-              "enable_thinking": true
+              "enable_thinking": true,
+              "preserve_thinking": true
             },
             "max_tokens": null
           },
@@ -46,19 +46,22 @@
             "low": {
               "reasoningEffort": "low",
               "chat_template_kwargs": {
-                "enable_thinking": true
+                "enable_thinking": true,
+                "preserve_thinking": true
               }
             },
             "medium": {
               "reasoningEffort": "medium",
               "chat_template_kwargs": {
-                "enable_thinking": true
+                "enable_thinking": true,
+                "preserve_thinking": true
               }
             },
             "xhigh": {
               "reasoningEffort": "xhigh",
               "chat_template_kwargs": {
-                "enable_thinking": true
+                "enable_thinking": true,
+                "preserve_thinking": true
               }
             },
             "high": {

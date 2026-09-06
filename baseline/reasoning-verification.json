@@ -1,0 +1,14 @@
+[
+  {
+    "name": "server-defaults",
+    "xhigh_instruction_present": true,
+    "historical_reasoning_present": true,
+    "thinking_generation_prefix": true
+  },
+  {
+    "name": "preservation-off-control",
+    "xhigh_instruction_present": true,
+    "historical_reasoning_present": false,
+    "thinking_generation_prefix": true
+  }
+]

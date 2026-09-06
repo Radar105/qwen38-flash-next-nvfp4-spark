@@ -1,0 +1,19 @@
+{
+  "baseline/baseline.json": "b7ade4c87e814be11905c142ce1e6b042155a8b768892cb20919b7ff6056d3f0",
+  "baseline/constraints.txt": "86b48141c8a9058732153d3770591a43b01155e6bd4d25cf5d4c194d3542c094",
+  "baseline/model-sha256.json": "0eeb605de4a7407eb5241d29db50712dc82de691f928aae404ec3daab6b717c4",
+  "baseline/operational-speed.json": "b9212c846dc0ace4ff32c59b134e08c66805d10317fe05b570bf9b0becc0d23e",
+  "baseline/reasoning-verification.json": "da762b4c04368eac2d8b3014ac30350b146aaeff2e646bc30e3c3c7de336e223",
+  "baseline/requirements.lock": "bb2c0df6680696ee9d577ffe46d1e2ee7103ef48bf34f2a24f7fa3e3a1629782",
+  "baseline/vision-wire-summary.json": "5f9047581188390ad0b1ddabd8ee1e97ea581182580a6bd02c02955920c1bade",
+  "config/opencode-provider.json": "8a8dcec53c96b89bcaac9bf268c8381b2edc93edd4f9e98bf66ab75278a13c24",
+  "patches/patched-source-sha256.json": "79cc5e9ffcc1bd0c276d7e4486ded612e2d0a21871347bc3ba72f2887b871148",
+  "patches/vllm-complete.patch": "e05d11568ddd96f0205eb24801ff5e15c40fdb21a10138414ec3697b92761a95",
+  "scripts/check-prefix.py": "e25d64b1b479640d1e46189ae4d5134aa3d33e1e710bd25220f98df084cc6372",
+  "scripts/download-model.sh": "556851b7595d3eb001c94a2aba5f64559cbd310062c4669c804d473f9d4988b8",
+  "scripts/opencode-full-images.sh": "68cbd5b0b8d25a6904ec4f90a33a7fbeb5e8007ea02f869836fb9c90037d18a7",
+  "scripts/rebuild.sh": "913d1c3a9413c948a332103aa874e73789aac2c0719e3101064400d6accc443c",
+  "scripts/serve.sh": "e57aa42038b64270f184541fb79eb799ee4bda0e5b51f3a7ce8076b061a6a8e1",
+  "scripts/setup.sh": "1d81e97d00f04e0526802cc62977c46f5efb35f75446043a3b10219a5d52ced2",
+  "scripts/verify-baseline.py": "b8a8ff4bab17671a82078ad61596ddf1175fb5f796c211b4e5de11e02a716cfe"
+}

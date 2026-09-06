@@ -14,12 +14,12 @@
   "vllm/models/qwen4_exp/nvidia/mtp.py": "9a15c851fb8e4cada1ca32178c8da8a3d15ab6c7ac0ba748721ecb5e9062f49c",
   "vllm/models/qwen4_exp/nvidia/ops/ple.py": "cc8994b653dd4b59d6ba35b6ec10af34017e9944482ec67cad6a32a02c5dd00a",
   "vllm/models/qwen4_exp/nvidia/ple_layer.py": "ab86ce6bcf0fb9c69ca2f9fb9b15c9d84f8f914fabae0d8a6e43365f7324f41c",
+  "vllm/models/qwen4_exp/nvidia/ple_mmap.py": "d7bb25eaaca77ee5d44a61078b42099421d0aed8dc78ab510d2b59f98924a02b",
   "vllm/v1/core/kv_cache_coordinator.py": "13802c987f9a47512d97e87209a5de5f52c1833ee76ca9e7cd80dcb80758a981",
   "vllm/v1/core/kv_cache_utils.py": "acae45102330e9368ab8f2eb6be4ec42acbc9d0482e0aeb02476cca56afd5f97",
   "vllm/v1/core/sched/scheduler.py": "f526b4c7f58e098196a4268dbe968e3ca5133035269bdfca749de2b8e693b2f7",
   "vllm/v1/core/single_type_kv_cache_manager.py": "797a89d18fcd75cbe235a8a4b95e35c2d75b152e88d4d8cd9b44ab938b4383ee",
   "vllm/v1/worker/gpu/model_runner.py": "e93771fff087f98e08088fbbb02e0d7c6e64debcb7f0ece17e2e4309eb6e3253",
   "vllm/v1/worker/gpu/model_states/interface.py": "45be554768c29ba9368dbe5d8a8f2ffcf9ab02211fc2464b4d1fd1a5de998f2f",
-  "vllm/v1/worker/gpu/model_states/mamba_hybrid.py": "a61da8e11bcf5ea6b20e057bee712ea2aecb4864abf7074d8e46389950d06a2a",
-  "vllm/models/qwen4_exp/nvidia/ple_mmap.py": "d7bb25eaaca77ee5d44a61078b42099421d0aed8dc78ab510d2b59f98924a02b"
+  "vllm/v1/worker/gpu/model_states/mamba_hybrid.py": "a61da8e11bcf5ea6b20e057bee712ea2aecb4864abf7074d8e46389950d06a2a"
 }

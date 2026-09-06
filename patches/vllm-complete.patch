@@ -1636,7 +1636,7 @@ index 0ac3f2f63b..19f99d562d 100644
                  for group in attn_groups[group_id]:
 diff --git a/vllm/models/qwen4_exp/nvidia/ple_mmap.py b/vllm/models/qwen4_exp/nvidia/ple_mmap.py
 new file mode 100644
-index 0000000..aef02c2
+index 0000000000..aef02c2994
 --- /dev/null
 +++ b/vllm/models/qwen4_exp/nvidia/ple_mmap.py
 @@ -0,0 +1,113 @@
