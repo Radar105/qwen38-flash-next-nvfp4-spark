@@ -9,6 +9,13 @@ The original build used four compilation jobs and took about 54 minutes.
 Runtime FlashInfer JIT uses one job because the loaded model leaves little
 unified-memory headroom. Do not confuse those two settings.
 
+## 0. Prepare a clean headless host
+
+Follow [the headless multi-user guide](HEADLESS.md) to stop competing inference
+workloads, switch to `multi-user.target`, verify memory and port availability,
+and restore the desktop later. The guide includes temporary and persistent
+headless modes. Complete this preparation before building or loading the model.
+
 ## 1. Prerequisites
 
 Install Git, a C/C++ toolchain, CMake, Ninja, pkg-config, CUDA13.0, Rust/Cargo,

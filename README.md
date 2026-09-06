@@ -34,6 +34,7 @@ That measures repeated prefill, not a 109x increase in generation speed.
 
 ## Start here
 
+- [Prepare a clean headless DGX](docs/HEADLESS.md)
 - [Setup and downloads](docs/SETUP.md)
 - [Full final report](reports/final/Qwen38_Final_Production_Report.md)
 - [PDF atlas](reports/final/Qwen38_Final_Production_Atlas.pdf)

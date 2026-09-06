@@ -32,8 +32,8 @@
     "bytes": 418
   },
   "README.md": {
-    "sha256": "a55ecb2981ca9469403df3398838ea0a8a16665a52f578cf5e287a1ad3530587",
-    "bytes": 5948
+    "sha256": "b9fa2c0ba54a9ccd5d15d4335ba8832df7ccd37602ad00ede9104bda1d83507f",
+    "bytes": 5999
   },
   "patches/patched-source-sha256.json": {
     "sha256": "fcf44e3570a9e3a27b855c76471f686c977d982d7d65bffd53c4924e7c7a54d9",
@@ -100,8 +100,8 @@
     "bytes": 503
   },
   "docs/SETUP.md": {
-    "sha256": "54b7944745469227b13aa12963196019e57d7675341d4638aded16af9317979e",
-    "bytes": 6901
+    "sha256": "b9c2ecbe4b2c7904bb4b272fe54f645b85eb3e6026df5d1043d1278fac356100",
+    "bytes": 7253
   },
   "docs/CHARTS.md": {
     "sha256": "f1290fbb0199f17604f6968224c63f84bbb4decf62c1c986c8f89b1ce577a2d9",
@@ -522,5 +522,9 @@
   "reports/final/evidence/baseline-source/tests/models/qwen4_exp/test_ple.py": {
     "sha256": "4624a10a78475c3391c394749d42868e05a3b1050e12df311eef892900225a9f",
     "bytes": 51568
+  },
+  "docs/HEADLESS.md": {
+    "sha256": "f54a49838094e3f8a209e14cda381f28fdcb1abc0ce6ff3c8c75b736b1fbda17",
+    "bytes": 6406
   }
 }
