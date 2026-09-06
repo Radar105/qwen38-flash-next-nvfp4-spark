@@ -6,43 +6,11 @@
 DGX Spark class GB10 system. Original NVIDIA weights, with documented vLLM
 patches. This is a tested local configuration, not an unmodified upstream recipe.
 
-[Copy the full vLLM command](#copyable-vllm-launch-command) |
-[Download the launch script](https://github.com/Radar105/qwen38-flash-next-nvfp4-spark/releases/download/v2026.09.05-apc.1/Qwen38_MTP2_262K_vLLM.sh)
-
-## Measured speeds
-
-With MTP2, the 47,643-token matched test delivered **1,863 tok/s prefill** and
-**26.83 tok/s decode**, a **62.2% decode increase** over no MTP. The separate
-30K prompt test measured **2,051 tok/s prefill** and **33.84 tok/s decode**.
-
-| MTP2 measurement | Input tokens | Prefill tok/s | Decode tok/s |
-|---|---:|---:|---:|
-| Matched MTP comparison | 47,643 | 1,863.14 | 26.83 |
-| 30K prompt sweep | 29,985 | 2,050.96 | 33.84 |
-
-These September 5 throughput tests used BF16 KV, thinking enabled and prefix
-caching off, before the final 262K prefix-cache deployment. Each number is an
-individual measured run. The [source data](reports/final/chart_data.json) and
-[30K sweep chart](reports/final/09_30K_Decode_Historical.png) are included.
-
-![MTP2 decode and prefill throughput compared with no MTP at 47,643 input tokens](reports/final/02_MTP2_Selection_Historical.png)
-
-## Prefix-cache speeds
-
-The 249,986-token repeated prompt reused 248,000 tokens. Server prefill fell
-from **157.90 seconds to 1.45 seconds**. All five 250K retrieval variants passed.
-That measures repeated prefill, not a 109x increase in generation speed.
-
-![Prefix-cache measurements](reports/final/03_Prefix_Cache_Cold_vs_Warm.png)
-
 ## Copyable vLLM launch command
 
-Complete [setup and weight download](docs/SETUP.md) first. This command uses
-that guide's patched vLLM environment and portable `$HOME/qwen38-spark` layout.
-Set `QWEN_SETUP_ROOT` if you installed elsewhere. Run it in a dedicated terminal
-or tmux session, with the previous inference engine stopped.
-
-[Download this command as a shell script](https://github.com/Radar105/qwen38-flash-next-nvfp4-spark/releases/download/v2026.09.05-apc.1/Qwen38_MTP2_262K_vLLM.sh) · [View source](scripts/serve.sh)
+After [setup and weight download](docs/SETUP.md), copy the script below into a
+dedicated terminal or tmux session. Stop the previous engine first. Change
+`QWEN_SETUP_ROOT` only if you installed outside `$HOME/qwen38-spark`.
 
 ```bash
 #!/usr/bin/env bash
@@ -85,6 +53,32 @@ by remaining context. For the supplied script, the short launch is:
 ```bash
 bash scripts/serve.sh
 ```
+
+## Measured speeds
+
+With MTP2, the 47,643-token matched test delivered **1,863 tok/s prefill** and
+**26.83 tok/s decode**, a **62.2% decode increase** over no MTP. The separate
+30K prompt test measured **2,051 tok/s prefill** and **33.84 tok/s decode**.
+
+| MTP2 measurement | Input tokens | Prefill tok/s | Decode tok/s |
+|---|---:|---:|---:|
+| Matched MTP comparison | 47,643 | 1,863.14 | 26.83 |
+| 30K prompt sweep | 29,985 | 2,050.96 | 33.84 |
+
+These September 5 throughput tests used BF16 KV, thinking enabled and prefix
+caching off, before the final 262K prefix-cache deployment. Each number is an
+individual measured run. The [source data](reports/final/chart_data.json) and
+[30K sweep chart](reports/final/09_30K_Decode_Historical.png) are included.
+
+![MTP2 decode and prefill throughput compared with no MTP at 47,643 input tokens](reports/final/02_MTP2_Selection_Historical.png)
+
+## Prefix-cache speeds
+
+The 249,986-token repeated prompt reused 248,000 tokens. Server prefill fell
+from **157.90 seconds to 1.45 seconds**. All five 250K retrieval variants passed.
+That measures repeated prefill, not a 109x increase in generation speed.
+
+![Prefix-cache measurements](reports/final/03_Prefix_Cache_Cold_vs_Warm.png)
 
 ## Start here
 
