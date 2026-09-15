@@ -7,8 +7,9 @@ Read README.md, docs/SETUP.md, CREDITS.md and the final report before changing i
 2. Use the complete patch once. Do not also apply each upstream PR separately.
 3. Use QWEN_SETUP_ROOT for portable paths. Do not add personal paths, hostnames,
    credentials, private conversations or machine identity files to this repo.
-4. Keep thinking enabled, BF16 KV 8GiB, MTP2, eagerTP1, one sequence,
-   prefix caching, align mode and retention1600 unless testing a stated change.
+4. Keep thinking enabled, BF16 KV 8GiB, MTP2, TP1 with FULL_AND_PIECEWISE
+   CUDA graphs, one sequence, prefix caching, align mode and retention1600
+   unless testing a stated change.
 5. Never run a second large engine beside the first. On GB10 use nvitop and
    system telemetry. Keep runtime MAX_JOBS=1.
 6. Verify the exact served ID, context, live argv, correct answers and positive
@@ -38,9 +39,12 @@ and existing services before executing setup or launch commands. The example
 paths are not evidence that the target machine is prepared. Read docs/SETUP.md
 and preserve unrelated installations and services.
 
-## Current recovery baseline (2026-09-06)
+## Current recovery baseline (2026-09-15)
 
 Read docs/BASELINE.md and docs/VISION_REASONING.md. Use scripts/rebuild.sh after
 host inspection; --check is read-only. Preserve xhigh thinking, preserve_thinking,
 native image processing and the 4 GiB / 512 MiB shared-memory image cache.
+The engine now runs CUDA graphs (FULL_AND_PIECEWISE) on Model Runner V2 with
+the PLE table served through `VLLM_PLE_MMAP=1`; `--enforce-eager` is gone.
+Keep `VLLM_SPARSE_INDEXER_MAX_LOGITS_MB=64` for long prefill on GB10.
 Keep all private agent canon and credentials outside this public repository.

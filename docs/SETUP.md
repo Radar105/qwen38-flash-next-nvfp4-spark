@@ -36,7 +36,7 @@ Install Git, a C/C++ toolchain, CMake, Ninja, pkg-config, CUDA13.0, Rust/Cargo,
 Python 3.12 and uv using their official distributions. The script checks these
 tools and does not install system packages or change the driver.
 
-Sources: [vLLM CUDA installation](https://github.com/vllm-project/vllm/blob/7fbd44cbe0a90b9c8fd3a94a0f0401ac4b1bc719/docs/getting_started/installation/gpu.cuda.inc.md),
+Sources: [vLLM CUDA installation](https://github.com/vllm-project/vllm/blob/9a35c081e80a94828af6f611525102bb70e3c67f/docs/getting_started/installation/gpu.cuda.inc.md),
 [CUDA](https://developer.nvidia.com/cuda-downloads),
 [Rust](https://www.rust-lang.org/tools/install), [uv](https://docs.astral.sh/uv/getting-started/installation/).
 
@@ -57,8 +57,10 @@ The source requirements include Torch2.13.0, torchvision0.28.0,
 torchaudio2.11.0 and FlashInfer0.6.18. FlashInfer cubin0.6.18 comes from the
 official FlashInfer wheel index referenced by vLLM's pinned requirements.
 `baseline/constraints.txt` records current package versions. The dependency
-lock resolves only the pinned vLLM build/runtime requirements against those
-constraints. `requirements-observed.txt` remains the earlier historical inventory.
+lock resolves the pinned vLLM build/runtime requirements against those
+constraints, with FlashInfer and huggingface-hub held at the versions the
+live engine runs (see [BASELINE.md](BASELINE.md)). `requirements-observed.txt`
+remains the September 5 historical inventory.
 
 A separate fresh-machine build was not repeated for publication. Patch
 application and final source hashes were checked in an isolated checkout;

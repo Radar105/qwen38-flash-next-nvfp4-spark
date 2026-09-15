@@ -6,8 +6,10 @@ The current launch preserves the completed image and reasoning qualification:
 - Native image processor settings; the older 1 MP override is removed.
 - `--limit-mm-per-prompt '{}'` uses this pinned engine's default modality counts.
 - Shared-memory processor cache: 4 GiB, 512 MiB maximum object.
-- Startup multimodal profiling skipped; MTP2, BF16 KV 8 GiB, eager TP1,
+- Startup multimodal profiling skipped; MTP2, BF16 KV 8 GiB, TP1,
   262144 context and prefix caching with align/retention1600 retained.
+  These tests ran on the September 6 eager build; the September 15 recipe
+  runs the same geometry with CUDA graphs (see BASELINE.md).
 
 An empty modality dictionary does not mean unlimited images. The model and
 engine retain admission and context limits. Video is not qualified by these tests.

@@ -5,9 +5,10 @@
     "author": "ptorsten",
     "author_url": "https://github.com/ptorsten",
     "url": "https://github.com/vllm-project/vllm/pull/53798",
-    "head_sha": "243dfa6df183eafcc092f9812ebcbd9da2d3b98e",
+    "head_sha": "af5357c2b90b37bd2033578bbc97d0ddfa6cc69f",
     "state": "open",
-    "merged_at": null
+    "merged_at": null,
+    "carried": "local backport in the complete patch"
   },
   {
     "number": 54076,
@@ -15,9 +16,10 @@
     "author": "wickist",
     "author_url": "https://github.com/wickist",
     "url": "https://github.com/vllm-project/vllm/pull/54076",
-    "head_sha": "53930fe85c9e5dd78ec8cb7129c0210da40c843f",
+    "head_sha": "244edeed3dc8587e9c2f6f8a4c6d72642fe64579",
     "state": "open",
-    "merged_at": null
+    "merged_at": null,
+    "carried": "local backport in the complete patch"
   },
   {
     "number": 55390,
@@ -27,17 +29,30 @@
     "url": "https://github.com/vllm-project/vllm/pull/55390",
     "head_sha": "28bc017bbe359f4c17793ee8a103c5d623c8f75f",
     "state": "open",
-    "merged_at": null
+    "merged_at": null,
+    "carried": "local backport in the complete patch"
+  },
+  {
+    "number": 56661,
+    "title": "[Bugfix][Parser] Preserve literal Qwen tool markers and following answers",
+    "author": "JordiPosthumus",
+    "author_url": "https://github.com/JordiPosthumus",
+    "url": "https://github.com/vllm-project/vllm/pull/56661",
+    "head_sha": "24fbbd82657e09d9cfe5b1989240115eabf0e1c6",
+    "state": "open",
+    "merged_at": null,
+    "carried": "local backport in the complete patch"
   },
   {
     "number": 54713,
-    "title": "[BugFix] Mamba sparse retention keeps a state below each boundary under EAGLE/MTP",
+    "title": "[BugFix] Retain both replay boundaries so an EAGLE resend of a block-aligned prompt still hits",
     "author": "tobymao",
     "author_url": "https://github.com/tobymao",
     "url": "https://github.com/vllm-project/vllm/pull/54713",
     "head_sha": "d3bdc5f7cc6011f0ad30b80b417aa6cdbb4217ab",
-    "state": "open",
-    "merged_at": null
+    "state": "closed",
+    "merged_at": "merged before base 9a35c081e8",
+    "carried": "in the pinned base"
   },
   {
     "number": 55375,
@@ -47,6 +62,7 @@
     "url": "https://github.com/vllm-project/vllm/pull/55375",
     "head_sha": "288fec12f5c645dba6bd5593ebf8b2d3ec586e06",
     "state": "closed",
-    "merged_at": "2026-09-05T14:02:20Z"
+    "merged_at": "2026-09-05T14:02:20Z",
+    "carried": "in the pinned base"
   }
 ]

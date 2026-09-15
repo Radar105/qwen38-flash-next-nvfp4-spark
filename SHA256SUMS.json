@@ -1,11 +1,11 @@
 {
   "CREDITS.md": {
-    "sha256": "c511a05083cb977d2f301bffaa8d28c736478a9bfc13c28ddb9d52d3b519d277",
-    "bytes": 2864
+    "sha256": "b6a495e9619c0e04d81bd4b114a2f8f9a1fedff17115a8b2db8bc1cb2b028bd4",
+    "bytes": 3335
   },
   "AGENTS.md": {
-    "sha256": "8462726548f3325ec80ef209adc3e22b70130bcd0dd8fe35854411d63ad29a7f",
-    "bytes": 2282
+    "sha256": "d71e30d2272945205c2bbd55fd3ab51292a4e209cb72fde792a9983f8f25d8ea",
+    "bytes": 2898
   },
   "NOTICE": {
     "sha256": "754b6aa4b4a98aded29a58068ff4354703aea9cb5b3320d0bf187c7a86c3d00f",
@@ -24,32 +24,32 @@
     "bytes": 89
   },
   "CLAUDE.md": {
-    "sha256": "842e13697b4e82003573d00464a5b9ade95e233bf4116cbc4f3ea5c0f07ddb37",
-    "bytes": 990
+    "sha256": "0c4fea3bc2c46a346b945918f3abc7f54f43be7c5a2d5cde5a13a29f2734cab0",
+    "bytes": 1572
   },
   "AGENT.md": {
     "sha256": "cb6fca7b7e94b59c919d35ceb464ee434d3ed45478319ac26cb609a7909c9c93",
     "bytes": 418
   },
   "README.md": {
-    "sha256": "6b2ff8ed4998412b3012edc88e8d0ddeba5e147740b397d07414eeebc6cffad9",
-    "bytes": 8623
+    "sha256": "c061b43aa7eb1a2fc9a2bca5992ce845c3e4e6a452593db71dabd662b505196d",
+    "bytes": 12040
   },
   "patches/patched-source-sha256.json": {
-    "sha256": "fcf44e3570a9e3a27b855c76471f686c977d982d7d65bffd53c4924e7c7a54d9",
-    "bytes": 2597
+    "sha256": "bc21998eae2e5fd6d003462f912345977868bf971162a45d15e170ce92234204",
+    "bytes": 3615
   },
   "patches/vllm-complete.patch": {
-    "sha256": "c3de54271f40a1373246ee89776a7646bb4eec9fd6d24cc6d9b8564a1a401588",
-    "bytes": 80509
+    "sha256": "123d46bbb89d6380a15c1ad2baba3da603bd168f17135401731257cf2c2a2295",
+    "bytes": 510950
   },
   "assets/banner-5x2.png": {
     "sha256": "0037a705220488a02cbe2b49d7037705f000bf9edd8690f3d26245298967ea73",
     "bytes": 1225459
   },
   "provenance/portable-launch-parity.json": {
-    "sha256": "323f58314d3f9fffd9b02ca326e42c7bbfdfc49946d3b7031103d46c1822d8c8",
-    "bytes": 1393
+    "sha256": "e04bfaa9acc5a55228297b89025eb130ae0123ce54f6971dcfc840b3ac441bcd",
+    "bytes": 1876
   },
   "provenance/aa-one-effort.json": {
     "sha256": "b4a4a64d89acab320b30ae5236b98a915a200a8a726e3410c1ee5b86e39c0022",
@@ -60,8 +60,8 @@
     "bytes": 213
   },
   "provenance/upstream-credits.json": {
-    "sha256": "4c373386f86045264e547bb8dc06f35db291e7f7027fd69cc35e1556cffc1c90",
-    "bytes": 1824
+    "sha256": "bf88f68ae8746b697d00d2981c748a93ef583c33a98ece0053f512cb86cd96c2",
+    "bytes": 2533
   },
   "provenance/nvidia-precision.json": {
     "sha256": "9847fcddd8421f416def3f9f8b5b198f232dd6ed54cf5ddeea078aceed327618",
@@ -84,24 +84,24 @@
     "bytes": 4519
   },
   "scripts/serve.sh": {
-    "sha256": "0163b255827e5ca10487eb0cfd327a548a3a1451e1798e80780c8a4000a991c5",
-    "bytes": 1628
+    "sha256": "9b170a56c6d51322faf0e4849d38c315d53d046e992bc4b6a5f2b170d403044d",
+    "bytes": 2059
   },
   "scripts/render-charts.py": {
     "sha256": "9ebcc6217ebaa7150f7b99b1741cdf46c91394af7368d25fc3ab5ae5f6dac962",
     "bytes": 15210
   },
   "scripts/setup.sh": {
-    "sha256": "1c52705ab8be3dcb7fdb1a34cfd9cacd96bd2147bfac8d83aea2dd0c29329d29",
-    "bytes": 1755
+    "sha256": "242ae835c971293359662f9890e4b2079cbe9df7c3e430dfbf76347eac243ba5",
+    "bytes": 1807
   },
   "scripts/download-model.sh": {
-    "sha256": "27b2606718a54cc3c007b5cf5472e77bcf66f7df0c92944269340d0f99691654",
-    "bytes": 503
+    "sha256": "556851b7595d3eb001c94a2aba5f64559cbd310062c4669c804d473f9d4988b8",
+    "bytes": 537
   },
   "docs/SETUP.md": {
-    "sha256": "b9c2ecbe4b2c7904bb4b272fe54f645b85eb3e6026df5d1043d1278fac356100",
-    "bytes": 7253
+    "sha256": "1b246e70aa6b4f8292fc9c0ad8c0b0a21943f51ce71f4c30c279dd2dc20a962a",
+    "bytes": 8534
   },
   "docs/CHARTS.md": {
     "sha256": "f1290fbb0199f17604f6968224c63f84bbb4decf62c1c986c8f89b1ce577a2d9",
@@ -148,8 +148,8 @@
     "bytes": 1352
   },
   "config/opencode-provider.json": {
-    "sha256": "0b5404a75e526045a665dc54d18e9a7b682a9783f0abe3d75a0a150d44724347",
-    "bytes": 1971
+    "sha256": "8a8dcec53c96b89bcaac9bf268c8381b2edc93edd4f9e98bf66ab75278a13c24",
+    "bytes": 2104
   },
   "reports/final/qualified-raw-prefix-command.sh": {
     "sha256": "c795f1385645268b86a827ec5050b9c5bce2b5775f08df0c61289e481f2e26d8",
@@ -160,8 +160,8 @@
     "bytes": 76262
   },
   "reports/final/Qwen38_Final_Production_Report.md": {
-    "sha256": "36856c621770f19f31847649077bc966ce7085fbb5d357425e08af145b11eb84",
-    "bytes": 22860
+    "sha256": "d736808346eba215d3995989e7f972bee44448daf839a4578ca7afc41f8810ad",
+    "bytes": 22858
   },
   "reports/final/model-config.json": {
     "sha256": "4156f806efe3b33a892f13634002b2fb2371eb520908a5a110e63eab1822dd49",
@@ -212,8 +212,8 @@
     "bytes": 1809
   },
   "reports/final/Qwen38_Final_Production_Offline.html": {
-    "sha256": "c0d7a898dcbf794a31658d104c55824c543133fbedb84bd01fc510209b3bbd19",
-    "bytes": 2506722
+    "sha256": "ea7cbad9b06b564daca8d168bbd626101280e7474fdc10790df5af5e34f447f0",
+    "bytes": 2506720
   },
   "reports/final/03_Prefix_Cache_Cold_vs_Warm.svg": {
     "sha256": "d52cb7a1cdc7b41c599ddfe645d590fa05ea39760c8c40b4af5dd57d670f9062",
@@ -316,16 +316,16 @@
     "bytes": 148604
   },
   "reports/earlier/07_Validation_and_Production.png": {
-    "sha256": "81bf2f67846f7b009be3669b27933071c2ba320642e553c3db5a9bd4060cf46e",
-    "bytes": 226529
+    "sha256": "3ad95931c985398e3e1a10fbe64ececf12200b6fb04b7c3a54ada1fc1624e8bb",
+    "bytes": 273565
   },
   "reports/earlier/Qwen38_262K_Full_Report.md": {
     "sha256": "e808581b40f0c7466a90dba024ae2771c53352b24358021177b77fa47c55e4f1",
     "bytes": 16528
   },
   "reports/earlier/Qwen38_262K_Deployment_Atlas.pdf": {
-    "sha256": "9117fade8d09118a9a25cc389a86b6ae927629806dd19492b12cf2b68f0f2773",
-    "bytes": 40089
+    "sha256": "c08b372db3a6185fe0c98f5d98c01f46328ade9ac414a98050be9a50d5fd36fb",
+    "bytes": 39740
   },
   "reports/earlier/opencode-provider.json": {
     "sha256": "b889ec583424ceeb106d5550b70dba551b8778d7223127444bc21a5e85a6c32b",
@@ -348,8 +348,8 @@
     "bytes": 111439
   },
   "reports/earlier/07_Validation_and_Production.svg": {
-    "sha256": "b60b6d9f47972a46611a7404d3e38fc50cd8017261123fa2bd6a08bde99e29fe",
-    "bytes": 109331
+    "sha256": "e5dbb10a9a8cdafdc5a116fcfa37873124a539f568893b8265f87be2e7497a90",
+    "bytes": 109290
   },
   "reports/earlier/05_Fixes_and_Limits.png": {
     "sha256": "8f7bef0c8e208191979e773c8cc5f1d889868d06d5deea72de86d70ea4b7c36c",

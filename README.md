@@ -20,13 +20,24 @@ environment, model and cache paths, available memory, ports and existing
 services before building or launching. Have it apply the documented patches,
 download the pinned weights, then verify model responses and prefix-cache reuse.
 
-## September 6 rebuild baseline
+## September 15 production update
 
-The current baseline includes native 4096×4096 image processing, multi-image
-history, xhigh thinking by default, reasoning retention, and a 4 GiB shared-memory
-image cache. The [baseline record](docs/BASELINE.md) includes the exact model
-revision, all 23 patched source files, a hash-locked dependency set, and checksums
-for every original model file. No model or environment copy is required.
+The recipe now tracks the running engine: vLLM base `9a35c081` (September 11)
+with CUDA graphs (`FULL_AND_PIECEWISE`) on Model Runner V2 instead of eager
+execution, the PLE mmap reader rewritten for captured forwards, upstream
+PR #56661 for the qwen3 streaming parser, and
+`VLLM_SPARSE_INDEXER_MAX_LOGITS_MB=64` for long prefill on GB10. With the cap,
+a 250K cold prefill measured 128.8 s with a 0.22 GiB drop in available memory
+(September 11 without it: 192.5 s and about 25 GiB). Geometry, thinking
+defaults and image handling are unchanged. The [baseline record](docs/BASELINE.md)
+lists every change, the exact model revision, all 32 patched source files, a
+hash-locked dependency set, and checksums for every original model file. No
+model or environment copy is required. The September 6 release assets under
+Downloads predate this update; `main` is current.
+
+The baseline keeps native 4096×4096 image processing, multi-image history,
+xhigh thinking by default, reasoning retention, and a 4 GiB shared-memory
+image cache.
 
 After your agent checks the host, one entry point builds, downloads or reuses
 verified weights, starts the engine, and checks correct cold/warm retrieval:
@@ -56,7 +67,11 @@ export PATH="$setup_root/venv/bin:$CUDA_HOME/bin:$PATH"
 export MAX_JOBS=1
 export NVCC_THREADS=1
 export VLLM_USE_DEEP_GEMM=0
-export VLLM_QWEN4_PLE_MMAP=1
+export VLLM_PLE_MMAP=1
+export VLLM_USE_V2_MODEL_RUNNER=1
+export VLLM_USE_BREAKABLE_CUDAGRAPH=1
+export VLLM_ALLOW_LONG_MAX_MODEL_LEN=1
+export VLLM_SPARSE_INDEXER_MAX_LOGITS_MB=64
 export VLLM_CACHE_ROOT="$setup_root/cache"
 export XDG_CACHE_HOME="$setup_root/xdg-cache"
 export HF_HUB_OFFLINE=1
@@ -68,16 +83,17 @@ exec "$setup_root/venv"/bin/vllm serve \
   --host "${QWEN_HOST:-127.0.0.1}" --port "${QWEN_PORT:-8092}" \
   --tensor-parallel-size 1 --dtype bfloat16 --quantization modelopt \
   --max-model-len 262144 --max-num-seqs 1 --max-num-batched-tokens 2048 \
-  --enforce-eager --kv-cache-dtype auto --kv-cache-memory-bytes 8G \
+  --compilation-config '{"mode":0,"cudagraph_mode":"FULL_AND_PIECEWISE"}' \
+  --kv-cache-dtype auto --kv-cache-memory-bytes 8G \
   --gpu-memory-utilization 0.8 --enable-prefix-caching --mamba-cache-mode align --prefix-cache-retention-interval 1600 \
   --load-format safetensors --safetensors-load-strategy lazy \
+  --model-loader-extra-config '{"enable_multithread_load":true,"num_threads":4}' \
   --limit-mm-per-prompt '{}' \
   --enable-auto-tool-choice --tool-call-parser qwen3_coder --reasoning-parser qwen3 \
   --skip-mm-profiling --mm-processor-cache-type shm \
   --mm-processor-cache-gb 4 --mm-shm-cache-max-object-size-mb 512 \
-  --generation-config vllm --override-generation-config '{"max_new_tokens":131072}' \
+  --generation-config auto --override-generation-config '{"max_new_tokens":131072}' \
   --speculative-config '{"method":"mtp","num_speculative_tokens":2}' \
-  --no-enable-flashinfer-autotune \
   --default-chat-template-kwargs '{"enable_thinking":true,"preserve_thinking":true,"reasoning_effort":"xhigh"}'
 ```
 
@@ -156,13 +172,14 @@ git clone Qwen38_2026-09-06_Repository.bundle qwen38-flash-next-nvfp4-spark
 |---|---|
 | Model | `nvidia/Qwen3.8-Flash-Next-NVFP4` |
 | Model revision | `fab0aecb760cec45227f6656abcaafa11abca87a` |
-| vLLM source base | `7fbd44cbe0a90b9c8fd3a94a0f0401ac4b1bc719` |
-| Measured vLLM version | `0.28.1rc1.dev442+g7fbd44cbe.d20260905` |
+| vLLM source base | `9a35c081e80a94828af6f611525102bb70e3c67f` |
+| Measured vLLM version | `0.28.1rc1.dev718+g9a35c081e.d20260911` |
 | Context | 262144 total tokens |
 | Output ceiling | 131072 tokens, bounded by remaining context |
 | KV cache | 8 GiB BF16 |
 | Speculation | Native MTP, 2 draft tokens |
-| Execution | Eager, TP1, one sequence, batch2048 |
+| Execution | CUDA graphs FULL_AND_PIECEWISE, Model Runner V2, TP1, one sequence, batch2048 |
+| QSA indexer | `VLLM_SPARSE_INDEXER_MAX_LOGITS_MB=64` |
 | Prefix cache | Enabled, Mamba align, retention interval1600 |
 | Thinking | xhigh default, enabled, reasoning retained; low/medium available |
 | PLE | Original FP8 table, local mmap reader |
@@ -189,8 +206,14 @@ The KV dtype is separate from weight quantization.
   an actual streaming OpenCode tool roundtrip with positive cache counters.
 - 201 core/worker tests and186 cache/scheduler tests. Two PP2 cases require
   more than this single GPU. Source pre-commit passed.
-- Complete patch applied to the pinned base in an isolated checkout. All23
-  affected source/test files matched the qualified source by SHA-256.
+- September 15: complete patch applied to a fresh checkout of the pinned base.
+  All 32 affected source/test files matched the live source by SHA-256; the
+  portable launch script matched the live process flag by flag; the lock
+  passed a hash-checked install dry-run.
+- September 14, live engine: 204 parser tests, streaming and non-streaming
+  parser regression with literal tool markers, 120K retrieval (63.6 s) and
+  250K cold retrieval (128.8 s, 0.22 GiB memory drop, 7.3 s warm repeat),
+  OpenCode tool round trip with prefix hits.
 
 Results are individual measured runs. No extended soak, concurrency above one,
 MTP3 result, full131072-token generated answer, or bitwise hidden-state

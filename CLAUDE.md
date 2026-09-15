@@ -20,9 +20,12 @@ and existing services before executing setup or launch commands. The example
 paths are not evidence that the target machine is prepared. Read docs/SETUP.md
 and preserve unrelated installations and services.
 
-## Current recovery baseline (2026-09-06)
+## Current recovery baseline (2026-09-15)
 
 Read docs/BASELINE.md and docs/VISION_REASONING.md. Use scripts/rebuild.sh after
 host inspection; --check is read-only. Preserve xhigh thinking, preserve_thinking,
 native image processing and the 4 GiB / 512 MiB shared-memory image cache.
+The engine now runs CUDA graphs (FULL_AND_PIECEWISE) on Model Runner V2 with
+the PLE table served through `VLLM_PLE_MMAP=1`; `--enforce-eager` is gone.
+Keep `VLLM_SPARSE_INDEXER_MAX_LOGITS_MB=64` for long prefill on GB10.
 Keep all private agent canon and credentials outside this public repository.
