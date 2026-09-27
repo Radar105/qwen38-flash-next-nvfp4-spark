@@ -36,7 +36,7 @@ Install Git, a C/C++ toolchain, CMake, Ninja, pkg-config, CUDA13.0, Rust/Cargo,
 Python 3.12 and uv using their official distributions. The script checks these
 tools and does not install system packages or change the driver.
 
-Sources: [vLLM CUDA installation](https://github.com/vllm-project/vllm/blob/9a35c081e80a94828af6f611525102bb70e3c67f/docs/getting_started/installation/gpu.cuda.inc.md),
+Sources: [vLLM CUDA installation](https://github.com/vllm-project/vllm/blob/e7900156e130c9880eb03b7c1f2df32820e7a2be/docs/getting_started/installation/gpu.cuda.inc.md),
 [CUDA](https://developer.nvidia.com/cuda-downloads),
 [Rust](https://www.rust-lang.org/tools/install), [uv](https://docs.astral.sh/uv/getting-started/installation/).
 

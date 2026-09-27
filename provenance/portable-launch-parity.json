@@ -1,13 +1,27 @@
 {
   "pass": true,
-  "scope": "Executed portable serve.sh against a capture executable; semantic engine flags match the live process. No second engine started.",
-  "compared_flags": 29,
+  "recorded_date": "2026-09-27",
+  "scope": "Parsed portable serve.sh and compared it with /proc cmdline and environment of the live engine process. Host, port and paths excluded. No second engine started.",
+  "compared_flags": 31,
+  "compared_env": [
+    "MAX_JOBS",
+    "NVCC_THREADS",
+    "HF_HUB_OFFLINE",
+    "TOKENIZERS_PARALLELISM",
+    "VLLM_PLE_MMAP",
+    "VLLM_USE_V2_MODEL_RUNNER",
+    "VLLM_USE_BREAKABLE_CUDAGRAPH",
+    "VLLM_ALLOW_LONG_MAX_MODEL_LEN",
+    "VLLM_SPARSE_INDEXER_MAX_LOGITS_MB",
+    "VLLM_GDN_BA_GEMV_MAX_TOKENS"
+  ],
   "flags": {
     "--compilation-config": "{\"mode\":0,\"cudagraph_mode\":\"FULL_AND_PIECEWISE\"}",
     "--default-chat-template-kwargs": "{\"enable_thinking\":true,\"preserve_thinking\":true,\"reasoning_effort\":\"xhigh\"}",
     "--dtype": "bfloat16",
     "--enable-auto-tool-choice": true,
     "--enable-prefix-caching": true,
+    "--engram-config": "{\"cpu_offload\":false}",
     "--generation-config": "auto",
     "--gpu-memory-utilization": "0.8",
     "--kv-cache-dtype": "auto",
@@ -16,12 +30,13 @@
     "--load-format": "safetensors",
     "--mamba-cache-mode": "align",
     "--max-model-len": "262144",
-    "--max-num-batched-tokens": "2048",
+    "--max-num-batched-tokens": "4096",
     "--max-num-seqs": "1",
     "--mm-processor-cache-gb": "4",
     "--mm-processor-cache-type": "shm",
     "--mm-shm-cache-max-object-size-mb": "512",
     "--model-loader-extra-config": "{\"enable_multithread_load\":true,\"num_threads\":4}",
+    "--moe-backend": "marlin",
     "--override-generation-config": "{\"max_new_tokens\":131072}",
     "--prefix-cache-retention-interval": "1600",
     "--quantization": "modelopt",
@@ -32,16 +47,5 @@
     "--speculative-config": "{\"method\":\"mtp\",\"num_speculative_tokens\":2}",
     "--tensor-parallel-size": "1",
     "--tool-call-parser": "qwen3_coder"
-  },
-  "runtime_env": {
-    "MAX_JOBS": "1",
-    "NVCC_THREADS": "1",
-    "VLLM_ALLOW_LONG_MAX_MODEL_LEN": "1",
-    "VLLM_PLE_MMAP": "1",
-    "VLLM_SPARSE_INDEXER_MAX_LOGITS_MB": "64",
-    "VLLM_USE_BREAKABLE_CUDAGRAPH": "1",
-    "VLLM_USE_DEEP_GEMM": "0",
-    "VLLM_USE_V2_MODEL_RUNNER": "1"
-  },
-  "differences": {}
+  }
 }

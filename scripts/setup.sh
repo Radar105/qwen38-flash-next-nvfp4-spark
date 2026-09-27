@@ -12,7 +12,7 @@ test ! -e "$setup_root/src/vllm" && test ! -e "$setup_root/venv" || {
 }
 mkdir -p "$setup_root/src" "$setup_root/cache" "$setup_root/xdg-cache" "$setup_root/tmp"
 git clone --filter=blob:none --no-checkout https://github.com/vllm-project/vllm.git "$setup_root/src/vllm"
-git -C "$setup_root/src/vllm" checkout --detach 9a35c081e80a94828af6f611525102bb70e3c67f
+git -C "$setup_root/src/vllm" checkout --detach e7900156e130c9880eb03b7c1f2df32820e7a2be
 git -C "$setup_root/src/vllm" apply --check "$repo_dir/patches/vllm-complete.patch"
 git -C "$setup_root/src/vllm" apply "$repo_dir/patches/vllm-complete.patch"
 python3.12 "$repo_dir/scripts/verify-baseline.py" --source "$setup_root/src/vllm"

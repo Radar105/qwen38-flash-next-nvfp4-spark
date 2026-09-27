@@ -1,9 +1,10 @@
-# Rebuild baseline: September 15, 2026
+# Rebuild baseline: September 27, 2026
 
 This record freezes the working software recipe without copying the 124 GiB
 checkpoint or the installed environment. The original NVIDIA revision and vLLM
-base are immutable identifiers. The complete patch contains all 32 modified or
-new source/test files, including the PLE mmap reader and the parser fix.
+base are immutable identifiers. The complete patch contains all 53 modified,
+new or removed source/test files, including the PLE mmap reader, the parser
+fix and the September 27 additions.
 
 After inspecting and preparing the target GB10 host:
 
@@ -29,7 +30,31 @@ are in `QWEN_SETUP_ROOT`. It never reports readiness from a successful launch al
 If `QWEN_HOST` binds a particular non-loopback address, set `QWEN_CHECK_HOST`
 to that address for validation. Loopback is the public default.
 
-## What changed since September 6
+## What changed since September 15
+
+- vLLM base moved from `9a35c081` (September 11) to `e7900156` (September 27).
+  PR #55390 is now in the base. The base also brings #58434 and #58368, which
+  fix hybrid MTP with prefix caching: a one-token prompt tail over cached
+  state, padded with placeholder drafts, is now verified as a speculative row
+  instead of being prefilled into linear-attention state that cannot roll the
+  placeholders back; and prompt-tail prefix-cache hits work again under MTP.
+- Added to the patch: #55122 (deterministic `persistent_topk` select for the
+  sparse-attention indexer; 223 kernel tests pass on GB10), #50021 (bounded
+  accepted-token state lookups in GDN speculative decoding), #56724 (drafts
+  sampled within each request's top-k/top-p, adapted to keep the padded
+  single-row draft logits used on GB10), and #57318 (FlashInfer BF16 matmul
+  for the GDN gate projection, enabled by `VLLM_GDN_BA_GEMV_MAX_TOKENS=8`).
+- MoE experts run through Marlin (`--moe-backend marlin`): NVFP4 weights,
+  BF16 activations, for the main and MTP experts. Previously FlashInfer
+  CUTLASS W4A4.
+- `--engram-config '{"cpu_offload":false}'` replaces `VLLM_PLE_CPU_OFFLOAD`,
+  which upstream removed. `VLLM_USE_DEEP_GEMM=0` is no longer set.
+- Batch 4096 (was 2048; measured neutral). MTP stays at 2: MTP3 was measured
+  and was slower in every cell on this hardware.
+- Tried and not included: #57605 (align-mode lookahead allocation) fails an
+  allocator assertion on this base.
+
+## Changes on September 15
 
 - vLLM base moved from `7fbd44cb` (September 5) to `9a35c081` (September 11).
   Two of the five carried fixes (#54713, #55375) are now in the base.
@@ -69,22 +94,19 @@ to that address for validation. Loopback is the public default.
 Model: `nvidia/Qwen3.8-Flash-Next-NVFP4` at
 `fab0aecb760cec45227f6656abcaafa11abca87a` (unchanged since September 5; the
 model manifest is carried forward).
-vLLM base: `9a35c081e80a94828af6f611525102bb70e3c67f`.
-Observed version: `0.28.1rc1.dev718+g9a35c081e.d20260911`.
+vLLM base: `e7900156e130c9880eb03b7c1f2df32820e7a2be`.
+Observed version: `0.30.1rc1.dev232+g4e56a7287`.
 Build date suffixes can differ on reconstruction; source identity is the
 base plus the hash-verified patch. Python 3.12, CUDA 13.0 and Linux aarch64
 are prerequisites. Build and runtime use `MAX_JOBS=1`, `NVCC_THREADS=1`.
 
 The lock was resolved from the base's `requirements/build/cuda.txt` and
-`requirements/cuda.txt` against the live package inventory. Three packages
-were pinned to the live environment rather than the base's declaration, and
-the lock records them as installed: FlashInfer `0.6.18` and its cubin package
-(the base pins `0.6.18.post1`) and `huggingface-hub 1.28.0` (the base declares
-`>= 1.31.0`). The running engine was built from this source against those
-versions; a rebuild that upgrades them is untested. The editable vLLM
-installation is built from the verified source with `--no-build-isolation
---no-deps`; it cannot silently upgrade the locked dependencies. The cubin
-package is obtained from the [official FlashInfer index](https://flashinfer.ai/whl/flashinfer-cubin/).
+`requirements/cuda.txt` against the live package inventory. All 205 locked
+versions equal the running environment; no package needed an override. The
+editable vLLM installation is built from the verified source with
+`--no-build-isolation --no-deps`; it cannot silently upgrade the locked
+dependencies. FlashInfer and its cubin package come from the
+[official FlashInfer index](https://flashinfer.ai/whl/), declared in the lock.
 System compiler, driver and OS packages are host prerequisites, not bundled
 artifacts. Registry availability is still required; this is not an offline backup.
 
@@ -96,14 +118,15 @@ integrity without changing the runtime. Use `scripts/verify-baseline.py --source
 a model. Hashing the checkpoint reads about 124 GiB from disk.
 
 For this publication, the complete patch was applied to a fresh checkout of
-the pinned base and all 32 patched files matched the live source by SHA-256;
-the portable launch script was checked flag by flag against the live process;
-the dependency lock resolved and passed a hash-checked install dry-run; shell
-and Python syntax were checked. The live endpoint remained in service and the
-running configuration passed the September 14 checks (parser regression,
-120K and 250K retrieval, OpenCode round trip). A complete fresh build and
-reload has not been executed for this release, so one-command orchestration is
-not a claim of a newly measured clean-machine rebuild. Earlier long-context,
+the pinned base and all 52 patched files matched the live source by SHA-256;
+the portable launch script matched the live process on all 33 flags and its
+environment; the lock passed a hash-checked install dry-run; shell and Python
+syntax were checked. The live engine passed 20K and 250K cold/warm retrieval,
+GSM8K and prompt-NLL checks on September 27
+([measurements](../reports/2026-09-27/README.md)). A complete fresh build and
+reload on a clean machine has not been executed for this release, so
+one-command orchestration is not a claim of a newly measured clean-machine
+rebuild. Earlier long-context,
 throughput and vision tests keep their dates, their eager-execution
 configuration and their limits. Repeat raw checks before adding a wrapper or
 client on a reconstructed host.

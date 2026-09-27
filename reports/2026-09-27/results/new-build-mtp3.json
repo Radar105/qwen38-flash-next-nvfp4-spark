@@ -1,0 +1,1012 @@
+{
+ "label": "B-new-mtp3",
+ "time": "2026-09-27 15:42:36",
+ "version": {
+  "version": "0.30.1rc1.dev232+g4e56a7287"
+ },
+ "nll": {
+  "prose-1024": {
+   "mean_nll": [
+    0.32141650443987796,
+    0.31391287802372353,
+    0.32450082546806186
+   ],
+   "n": 1023,
+   "max_abs_lp_diff_between_reps": [
+    2.322365939617157,
+    2.4149253368377686
+   ],
+   "seconds": [
+    3.0006866455078125,
+    0.6001358032226562,
+    0.5564413070678711
+   ]
+  },
+  "prose-4096": {
+   "mean_nll": [
+    0.24751843583189653,
+    0.24641589448846782,
+    0.24877693946429824
+   ],
+   "n": 4095,
+   "max_abs_lp_diff_between_reps": [
+    5.417811691761017,
+    4.319437325000763
+   ],
+   "seconds": [
+    3.877358913421631,
+    2.1471128463745117,
+    2.1354103088378906
+   ]
+  },
+  "prose-32768": {
+   "mean_nll": [
+    0.08619660618126297,
+    0.08398022070035913,
+    0.08457749402231404
+   ],
+   "n": 32767,
+   "max_abs_lp_diff_between_reps": [
+    4.7776850163936615,
+    6.003561973571777
+   ],
+   "seconds": [
+    25.792667627334595,
+    17.04298448562622,
+    17.02442502975464
+   ]
+  },
+  "prose-131072": {
+   "mean_nll": [
+    0.04535978329095421,
+    0.04550980075378728,
+    0.0451041207404029
+   ],
+   "n": 131071,
+   "max_abs_lp_diff_between_reps": [
+    5.643151730298996,
+    4.574831008911133
+   ],
+   "seconds": [
+    124.5877697467804,
+    126.94812250137329,
+    125.55118751525879
+   ]
+  },
+  "code-1024": {
+   "mean_nll": [
+    0.553476908063303,
+    0.5561962781149484,
+    0.5505687071611943
+   ],
+   "n": 1023,
+   "max_abs_lp_diff_between_reps": [
+    1.3102974891662598,
+    2.764391779899597
+   ],
+   "seconds": [
+    1.1030452251434326,
+    0.6713321208953857,
+    0.552764892578125
+   ]
+  },
+  "code-4096": {
+   "mean_nll": [
+    0.6506279489804656,
+    0.6513961655455024,
+    0.6463088987236464
+   ],
+   "n": 4095,
+   "max_abs_lp_diff_between_reps": [
+    3.840321898460388,
+    3.130880355834961
+   ],
+   "seconds": [
+    3.3939707279205322,
+    2.282862424850464,
+    2.2046444416046143
+   ]
+  }
+ },
+ "gsm": {
+  "n": 100,
+  "effort": "off",
+  "correct": 97,
+  "acc": 0.97,
+  "seconds": 892.1618266105652,
+  "items": [
+   {
+    "i": 0,
+    "gold": "18",
+    "pred": "18",
+    "ok": true,
+    "tokens": 182,
+    "sha": "086c9860beb5"
+   },
+   {
+    "i": 1,
+    "gold": "3",
+    "pred": "3",
+    "ok": true,
+    "tokens": 268,
+    "sha": "a695279ab6d2"
+   },
+   {
+    "i": 2,
+    "gold": "70000",
+    "pred": "70000",
+    "ok": true,
+    "tokens": 482,
+    "sha": "96c970d54b5c"
+   },
+   {
+    "i": 3,
+    "gold": "540",
+    "pred": "540",
+    "ok": true,
+    "tokens": 263,
+    "sha": "4b4dda8d1179"
+   },
+   {
+    "i": 4,
+    "gold": "20",
+    "pred": "20",
+    "ok": true,
+    "tokens": 307,
+    "sha": "941937f8a52e"
+   },
+   {
+    "i": 5,
+    "gold": "64",
+    "pred": "64",
+    "ok": true,
+    "tokens": 461,
+    "sha": "5393c85d84bc"
+   },
+   {
+    "i": 6,
+    "gold": "260",
+    "pred": "260",
+    "ok": true,
+    "tokens": 234,
+    "sha": "275fd39a7e1c"
+   },
+   {
+    "i": 7,
+    "gold": "160",
+    "pred": "160",
+    "ok": true,
+    "tokens": 449,
+    "sha": "c9f616984764"
+   },
+   {
+    "i": 8,
+    "gold": "45",
+    "pred": "45",
+    "ok": true,
+    "tokens": 735,
+    "sha": "a9c48bfbf347"
+   },
+   {
+    "i": 9,
+    "gold": "460",
+    "pred": "460",
+    "ok": true,
+    "tokens": 306,
+    "sha": "7bdacc8048ef"
+   },
+   {
+    "i": 10,
+    "gold": "366",
+    "pred": "366",
+    "ok": true,
+    "tokens": 388,
+    "sha": "d37ac17c1ddf"
+   },
+   {
+    "i": 11,
+    "gold": "694",
+    "pred": "694",
+    "ok": true,
+    "tokens": 490,
+    "sha": "3fb90ad61c1d"
+   },
+   {
+    "i": 12,
+    "gold": "13",
+    "pred": "12",
+    "ok": false,
+    "tokens": 1221,
+    "sha": "a8180426796f"
+   },
+   {
+    "i": 13,
+    "gold": "18",
+    "pred": "18",
+    "ok": true,
+    "tokens": 590,
+    "sha": "7a8de62e4817"
+   },
+   {
+    "i": 14,
+    "gold": "60",
+    "pred": "60",
+    "ok": true,
+    "tokens": 315,
+    "sha": "43f328111d97"
+   },
+   {
+    "i": 15,
+    "gold": "125",
+    "pred": "125",
+    "ok": true,
+    "tokens": 269,
+    "sha": "cb7afb180e98"
+   },
+   {
+    "i": 16,
+    "gold": "230",
+    "pred": "230",
+    "ok": true,
+    "tokens": 217,
+    "sha": "0bbde7bb91df"
+   },
+   {
+    "i": 17,
+    "gold": "57500",
+    "pred": "57500",
+    "ok": true,
+    "tokens": 374,
+    "sha": "eaf71ac9c34e"
+   },
+   {
+    "i": 18,
+    "gold": "7",
+    "pred": "7",
+    "ok": true,
+    "tokens": 211,
+    "sha": "71aa3d1cc734"
+   },
+   {
+    "i": 19,
+    "gold": "6",
+    "pred": "6",
+    "ok": true,
+    "tokens": 521,
+    "sha": "890f9cff6e1e"
+   },
+   {
+    "i": 20,
+    "gold": "15",
+    "pred": "15",
+    "ok": true,
+    "tokens": 473,
+    "sha": "f23e075788de"
+   },
+   {
+    "i": 21,
+    "gold": "14",
+    "pred": "14",
+    "ok": true,
+    "tokens": 243,
+    "sha": "1d2ac216b577"
+   },
+   {
+    "i": 22,
+    "gold": "7",
+    "pred": "7",
+    "ok": true,
+    "tokens": 211,
+    "sha": "a73d7289d1cc"
+   },
+   {
+    "i": 23,
+    "gold": "8",
+    "pred": "8",
+    "ok": true,
+    "tokens": 218,
+    "sha": "55a780f913dc"
+   },
+   {
+    "i": 24,
+    "gold": "26",
+    "pred": "26",
+    "ok": true,
+    "tokens": 426,
+    "sha": "998b1cf00f36"
+   },
+   {
+    "i": 25,
+    "gold": "2",
+    "pred": "2",
+    "ok": true,
+    "tokens": 314,
+    "sha": "40e124c3f84c"
+   },
+   {
+    "i": 26,
+    "gold": "243",
+    "pred": "243",
+    "ok": true,
+    "tokens": 378,
+    "sha": "13bf6d145901"
+   },
+   {
+    "i": 27,
+    "gold": "16",
+    "pred": "16",
+    "ok": true,
+    "tokens": 231,
+    "sha": "2d595359cf2c"
+   },
+   {
+    "i": 28,
+    "gold": "25",
+    "pred": "25",
+    "ok": true,
+    "tokens": 237,
+    "sha": "c79df706adfc"
+   },
+   {
+    "i": 29,
+    "gold": "104",
+    "pred": "104",
+    "ok": true,
+    "tokens": 277,
+    "sha": "c0b57386d001"
+   },
+   {
+    "i": 30,
+    "gold": "109",
+    "pred": "109",
+    "ok": true,
+    "tokens": 272,
+    "sha": "9e4c0c9990a4"
+   },
+   {
+    "i": 31,
+    "gold": "80",
+    "pred": "80",
+    "ok": true,
+    "tokens": 335,
+    "sha": "d85660a6d314"
+   },
+   {
+    "i": 32,
+    "gold": "35",
+    "pred": "35",
+    "ok": true,
+    "tokens": 168,
+    "sha": "444e4042b9ab"
+   },
+   {
+    "i": 33,
+    "gold": "70",
+    "pred": "70",
+    "ok": true,
+    "tokens": 346,
+    "sha": "a823e2be1c85"
+   },
+   {
+    "i": 34,
+    "gold": "23",
+    "pred": "23",
+    "ok": true,
+    "tokens": 209,
+    "sha": "91af2f3d93f2"
+   },
+   {
+    "i": 35,
+    "gold": "9",
+    "pred": "9",
+    "ok": true,
+    "tokens": 265,
+    "sha": "d112fd429900"
+   },
+   {
+    "i": 36,
+    "gold": "75",
+    "pred": "75",
+    "ok": true,
+    "tokens": 213,
+    "sha": "58ea1b0b92da"
+   },
+   {
+    "i": 37,
+    "gold": "2",
+    "pred": "2",
+    "ok": true,
+    "tokens": 345,
+    "sha": "7d7e94715ed5"
+   },
+   {
+    "i": 38,
+    "gold": "10",
+    "pred": "10",
+    "ok": true,
+    "tokens": 372,
+    "sha": "5fa763b58311"
+   },
+   {
+    "i": 39,
+    "gold": "18",
+    "pred": "18",
+    "ok": true,
+    "tokens": 517,
+    "sha": "26de2723ab1b"
+   },
+   {
+    "i": 40,
+    "gold": "8",
+    "pred": "8",
+    "ok": true,
+    "tokens": 1009,
+    "sha": "0bb57e77248e"
+   },
+   {
+    "i": 41,
+    "gold": "200",
+    "pred": "200",
+    "ok": true,
+    "tokens": 489,
+    "sha": "a683149acaeb"
+   },
+   {
+    "i": 42,
+    "gold": "26",
+    "pred": "26",
+    "ok": true,
+    "tokens": 231,
+    "sha": "6124fdf849cc"
+   },
+   {
+    "i": 43,
+    "gold": "48",
+    "pred": "48",
+    "ok": true,
+    "tokens": 314,
+    "sha": "9d892d0e265c"
+   },
+   {
+    "i": 44,
+    "gold": "20",
+    "pred": "20",
+    "ok": true,
+    "tokens": 337,
+    "sha": "2374b6c28a19"
+   },
+   {
+    "i": 45,
+    "gold": "104",
+    "pred": "104",
+    "ok": true,
+    "tokens": 504,
+    "sha": "3f305c92a0da"
+   },
+   {
+    "i": 46,
+    "gold": "163",
+    "pred": "163",
+    "ok": true,
+    "tokens": 408,
+    "sha": "3e0d3f71022b"
+   },
+   {
+    "i": 47,
+    "gold": "800",
+    "pred": "800",
+    "ok": true,
+    "tokens": 443,
+    "sha": "ebf234d295b6"
+   },
+   {
+    "i": 48,
+    "gold": "8",
+    "pred": "8",
+    "ok": true,
+    "tokens": 281,
+    "sha": "ee2e6222bd39"
+   },
+   {
+    "i": 49,
+    "gold": "30",
+    "pred": "30",
+    "ok": true,
+    "tokens": 367,
+    "sha": "80a3068b9922"
+   },
+   {
+    "i": 50,
+    "gold": "294",
+    "pred": "294",
+    "ok": true,
+    "tokens": 354,
+    "sha": "dac05d449d15"
+   },
+   {
+    "i": 51,
+    "gold": "5",
+    "pred": "5",
+    "ok": true,
+    "tokens": 304,
+    "sha": "2f35ffbdad9f"
+   },
+   {
+    "i": 52,
+    "gold": "15",
+    "pred": "15",
+    "ok": true,
+    "tokens": 497,
+    "sha": "64d6b72da64e"
+   },
+   {
+    "i": 53,
+    "gold": "40",
+    "pred": "40",
+    "ok": true,
+    "tokens": 379,
+    "sha": "c67f8068528f"
+   },
+   {
+    "i": 54,
+    "gold": "40",
+    "pred": "40",
+    "ok": true,
+    "tokens": 274,
+    "sha": "327e6dfb8de2"
+   },
+   {
+    "i": 55,
+    "gold": "14",
+    "pred": "14",
+    "ok": true,
+    "tokens": 176,
+    "sha": "04af6d0a1557"
+   },
+   {
+    "i": 56,
+    "gold": "3",
+    "pred": "3",
+    "ok": true,
+    "tokens": 214,
+    "sha": "765325ed750a"
+   },
+   {
+    "i": 57,
+    "gold": "83",
+    "pred": "83",
+    "ok": true,
+    "tokens": 441,
+    "sha": "27775ef3ccb3"
+   },
+   {
+    "i": 58,
+    "gold": "57",
+    "pred": "57",
+    "ok": true,
+    "tokens": 334,
+    "sha": "15d914c731e9"
+   },
+   {
+    "i": 59,
+    "gold": "187",
+    "pred": "187",
+    "ok": true,
+    "tokens": 191,
+    "sha": "c77b32df92eb"
+   },
+   {
+    "i": 60,
+    "gold": "17",
+    "pred": "17",
+    "ok": true,
+    "tokens": 329,
+    "sha": "0d3fd09fb7a5"
+   },
+   {
+    "i": 61,
+    "gold": "1430",
+    "pred": "1430",
+    "ok": true,
+    "tokens": 235,
+    "sha": "ab5226affc83"
+   },
+   {
+    "i": 62,
+    "gold": "25000",
+    "pred": "25000",
+    "ok": true,
+    "tokens": 390,
+    "sha": "e00b0e0a2875"
+   },
+   {
+    "i": 63,
+    "gold": "1596",
+    "pred": "1596",
+    "ok": true,
+    "tokens": 441,
+    "sha": "a2352a94c348"
+   },
+   {
+    "i": 64,
+    "gold": "300",
+    "pred": "300",
+    "ok": true,
+    "tokens": 325,
+    "sha": "53f5671164af"
+   },
+   {
+    "i": 65,
+    "gold": "36",
+    "pred": "36",
+    "ok": true,
+    "tokens": 308,
+    "sha": "af7e9b34ffb9"
+   },
+   {
+    "i": 66,
+    "gold": "48",
+    "pred": "48",
+    "ok": true,
+    "tokens": 359,
+    "sha": "2001ff7f5f0f"
+   },
+   {
+    "i": 67,
+    "gold": "595",
+    "pred": "595",
+    "ok": true,
+    "tokens": 383,
+    "sha": "26adfa162ea5"
+   },
+   {
+    "i": 68,
+    "gold": "36",
+    "pred": "36",
+    "ok": true,
+    "tokens": 280,
+    "sha": "7f031429882b"
+   },
+   {
+    "i": 69,
+    "gold": "60",
+    "pred": "60",
+    "ok": true,
+    "tokens": 232,
+    "sha": "262a7b626af2"
+   },
+   {
+    "i": 70,
+    "gold": "7425",
+    "pred": "7425",
+    "ok": true,
+    "tokens": 289,
+    "sha": "68d3e1acca46"
+   },
+   {
+    "i": 71,
+    "gold": "60",
+    "pred": "60",
+    "ok": true,
+    "tokens": 142,
+    "sha": "32dcf3feb530"
+   },
+   {
+    "i": 72,
+    "gold": "221",
+    "pred": "221",
+    "ok": true,
+    "tokens": 266,
+    "sha": "dca2bc195de2"
+   },
+   {
+    "i": 73,
+    "gold": "255",
+    "pred": "255",
+    "ok": true,
+    "tokens": 356,
+    "sha": "529c27a03b40"
+   },
+   {
+    "i": 74,
+    "gold": "88",
+    "pred": "88",
+    "ok": true,
+    "tokens": 549,
+    "sha": "3ec99716527c"
+   },
+   {
+    "i": 75,
+    "gold": "60",
+    "pred": "60",
+    "ok": true,
+    "tokens": 534,
+    "sha": "b08d705056d6"
+   },
+   {
+    "i": 76,
+    "gold": "5",
+    "pred": "5",
+    "ok": true,
+    "tokens": 383,
+    "sha": "672883b7b2b3"
+   },
+   {
+    "i": 77,
+    "gold": "100",
+    "pred": "100",
+    "ok": true,
+    "tokens": 343,
+    "sha": "6262041a949d"
+   },
+   {
+    "i": 78,
+    "gold": "6",
+    "pred": "6",
+    "ok": true,
+    "tokens": 298,
+    "sha": "17101c9cd745"
+   },
+   {
+    "i": 79,
+    "gold": "70",
+    "pred": "70",
+    "ok": true,
+    "tokens": 212,
+    "sha": "f7481016ab8a"
+   },
+   {
+    "i": 80,
+    "gold": "10",
+    "pred": "10",
+    "ok": true,
+    "tokens": 281,
+    "sha": "16e0976de20f"
+   },
+   {
+    "i": 81,
+    "gold": "17",
+    "pred": "17",
+    "ok": true,
+    "tokens": 268,
+    "sha": "693b5483b287"
+   },
+   {
+    "i": 82,
+    "gold": "623",
+    "pred": "623",
+    "ok": true,
+    "tokens": 321,
+    "sha": "f4b10ee8fcc7"
+   },
+   {
+    "i": 83,
+    "gold": "600",
+    "pred": "600",
+    "ok": true,
+    "tokens": 187,
+    "sha": "204345ab6899"
+   },
+   {
+    "i": 84,
+    "gold": "15",
+    "pred": "15",
+    "ok": true,
+    "tokens": 357,
+    "sha": "22e408fbe36a"
+   },
+   {
+    "i": 85,
+    "gold": "44",
+    "pred": "48",
+    "ok": false,
+    "tokens": 380,
+    "sha": "7ca48731ad9e"
+   },
+   {
+    "i": 86,
+    "gold": "22",
+    "pred": "22",
+    "ok": true,
+    "tokens": 240,
+    "sha": "e16db78710a5"
+   },
+   {
+    "i": 87,
+    "gold": "9360",
+    "pred": "9360",
+    "ok": true,
+    "tokens": 413,
+    "sha": "4211c6b1cf78"
+   },
+   {
+    "i": 88,
+    "gold": "8000",
+    "pred": "8000",
+    "ok": true,
+    "tokens": 330,
+    "sha": "827658616f43"
+   },
+   {
+    "i": 89,
+    "gold": "24",
+    "pred": "24",
+    "ok": true,
+    "tokens": 194,
+    "sha": "c48b95b05bf3"
+   },
+   {
+    "i": 90,
+    "gold": "225",
+    "pred": "225",
+    "ok": true,
+    "tokens": 318,
+    "sha": "2d009bf71d62"
+   },
+   {
+    "i": 91,
+    "gold": "28",
+    "pred": "28",
+    "ok": true,
+    "tokens": 231,
+    "sha": "87734bfd512e"
+   },
+   {
+    "i": 92,
+    "gold": "4",
+    "pred": "4",
+    "ok": true,
+    "tokens": 280,
+    "sha": "6176756bd52f"
+   },
+   {
+    "i": 93,
+    "gold": "36",
+    "pred": "36.36",
+    "ok": false,
+    "tokens": 704,
+    "sha": "3bce2ecadc5c"
+   },
+   {
+    "i": 94,
+    "gold": "348",
+    "pred": "348",
+    "ok": true,
+    "tokens": 374,
+    "sha": "f50be4ffc67f"
+   },
+   {
+    "i": 95,
+    "gold": "40",
+    "pred": "40",
+    "ok": true,
+    "tokens": 440,
+    "sha": "3d5c14d4804b"
+   },
+   {
+    "i": 96,
+    "gold": "3",
+    "pred": "3",
+    "ok": true,
+    "tokens": 214,
+    "sha": "8aba33bce8b7"
+   },
+   {
+    "i": 97,
+    "gold": "12",
+    "pred": "12",
+    "ok": true,
+    "tokens": 445,
+    "sha": "6eae7481720f"
+   },
+   {
+    "i": 98,
+    "gold": "5",
+    "pred": "5",
+    "ok": true,
+    "tokens": 344,
+    "sha": "93f73f027e4b"
+   },
+   {
+    "i": 99,
+    "gold": "58",
+    "pred": "58",
+    "ok": true,
+    "tokens": 311,
+    "sha": "3661c47d655f"
+   }
+  ]
+ },
+ "greedy": [
+  "A gated DeltaNet layer updates its recurrent state by combining the linear attention mechanism of DeltaNet with a gating mechanism inspired by Long Short-Term Memory (LSTM) networks. This hybrid approach aims to retain the computational efficiency of linear-time sequence modeling while improving the model\u2019s ability to handle long-range dependencies and prevent state saturation.\n\nThe core of DeltaNet is the \"delta rule,\" which updates the state matrix $S_t$ by subtracting the current prediction error from the previous state. Mathematically, the standard update is $S_t = S_{t-1} - \\beta_t (S_{t-1} k_t - v_t) k_t^T$, where $k_t$ and $v_t$ are the key and value vectors, and $\\beta_t$ is a learning rate. This rule effectively performs a rank-one update that corrects the state based on the discrepancy between the retrieved value and the target value.\n\nIn a **gated** DeltaNet, this process is modulated by two additional gates: a forget gate ($f_t$) and an input gate ($i_t$). The forget gate controls how much of the previous state $S_{t-1}$ is retained, while the input gate regulates the magnitude of the new information added via the delta rule. The updated state equation becomes:\n\n$$ S_t = f_t \\odot S_{t-1} - i_t \\odot \\beta_t (S_{t-1} k_t - v_t) k_t^T $$\n\nHere, $\\odot$ denotes element-wise multiplication. The gates $f_t$ and $i_t$ are typically computed using sigmoid functions applied to linear projections of the current input and the previous hidden state. This allows the model to dynamically decide when to preserve existing knowledge and when to overwrite it with new information.\n\nThis gating mechanism addresses a key limitation of vanilla DeltaNet: the tendency for the state to decay or saturate over long sequences. By allowing the model to \"forget\" irrelevant information and selectively \"input\" significant updates, gated DeltaNet achieves better stability and performance on tasks requiring long-context reasoning, while maintaining the $O(N)$ time complexity characteristic of linear attention models.",
+  "```python\nimport re\nfrom typing import Union\n\n\ndef parse_iso8601_duration(duration: str) -> float:\n    \"\"\"\n    Parse an ISO-8601 duration string into seconds.\n    \n    ISO-8601 duration format: P[n]Y[n]M[n]DT[n]H[n]M[n]S\n    Examples:\n        \"PT1H\" -> 3600\n        \"PT30M\" -> 1800\n        \"P1D\" -> 86400\n        \"P1Y\" -> 31536000 (365 days)\n        \"P1M\" -> 2592000 (30 days)\n        \"PT1H30M15S\" -> 5415\n        \"P1Y2M3DT4H5M6S\" -> 365*86400 + 2*30*86400 + 3*86400 + 4*3600 + 5*60 + 6\n    \n    Args:\n        duration: An ISO-8601 duration string.\n        \n    Returns:\n        The duration in seconds as a float.\n        \n    Raises:\n        ValueError: If the duration string is invalid.\n    \"\"\"\n    if not isinstance(duration, str):\n        raise ValueError(\"Duration must be a string\")\n    \n    if not duration.startswith('P'):\n        raise ValueError(f\"Invalid ISO-8601 duration: {duration}\")\n    \n    # Split into date and time parts\n    if 'T' in duration:\n        date_part, time_part = duration.split('T', 1)\n    else:\n        date_part = duration\n        time_part = ''\n    \n    # Remove the 'P' prefix from date_part\n    if date_part.startswith('P'):\n        date_part = date_part[1:]\n    \n    total_seconds = 0.0\n    \n    # Parse date part: Y, M, D\n    if date_part:\n        # Match years, months, days\n        year_match = re.search(r'(\\d+(?:\\.\\d+)?)Y', date_part)\n        month_match = re.search(r'(\\d+(?:\\.\\d+)?)M',",
+  "To estimate the tonnage required for bending mild steel, we use the standard empirical formula used in sheet metal fabrication.\n\n### 1. The Formula\n\nThe standard formula for calculating the force required to bend sheet metal is:\n\n$$F = \\frac{1.42 \\times \\sigma_{uts} \\times t^2 \\times L}{V}$$\n\nWhere:\n*   $F$ = Force required (in Newtons, N)\n*   $\\sigma_{uts}$ = Ultimate Tensile Strength of the material (in MPa or N/mm\u00b2)\n*   $t$ = Thickness of the material (in mm)\n*   $L$ = Length of the bend (in mm)\n*   $V$ = Die opening width (in mm)\n*   $1.42$ = Empirical constant (accounts for friction and material behavior)\n\n**Simplified Formula for Tonnage per Meter:**\nSince you asked for **tonnage per meter**, we can simplify the units.\n*   Let $L = 1000$ mm (1 meter).\n*   Let $F$ be in Newtons. To convert Newtons to Metric Tonnes (1 tonne $\\approx$ 9810 N), we divide by 9810.\n*   For mild steel, a standard average Ultimate Tensile Strength ($\\sigma_{uts}$) is approximately **400 MPa** (N/mm\u00b2).\n\nSubstituting these values into the equation:\n\n$$F_{N} = \\frac{1.42 \\times 400 \\times t^2 \\times 1000}{V}$$\n$$F_{N} = \\frac{568,000 \\times t^2}{V}$$\n\nTo convert to Metric Tonnes ($T$):\n$$T = \\frac{568,000 \\times t^2}{V \\times 9810} \\approx \\frac{57.9 \\times t^2}{V}$$\n\nA very common industry rule-of-thumb approximation for mild steel is:\n$$T \\approx \\frac{60 \\times t^2}{V}$$\n\n### 2. Calculation\n\nGiven:\n*   Material: Mild Steel ($\\sigma_{uts} \\approx 400$ MPa)\n*   Thickness ($t",
+  "Here is a summary of the plot of *Pride and Prejudice* in 10 bullet points:\n\n*   **The Arrival of Bingley:** The Bennet family, consisting of Mr. and Mrs. Bennet and their five daughters, is excited by the arrival of the wealthy and amiable Mr. Bingley, who rents Netherfield Park, hoping he will marry one of the daughters.\n*   **The Meryton Ball:** At a local ball, Bingley falls for the eldest daughter, Jane, while his proud friend, Mr. Darcy, refuses to dance with the second-eldest, Elizabeth, dismissing her as merely \"tolerable,\" which sparks Elizabeth\u2019s prejudice against him.\n*   **Wickham\u2019s Deception:** Elizabeth meets the charming militia officer George Wickham, who claims Darcy cheated him out of an inheritance, further solidifying Elizabeth\u2019s dislike of Darcy.\n*   **Jane\u2019s Illness and Darcy\u2019s Interest:** Jane falls ill while visiting Netherfield, and Elizabeth stays to care for her, leading to increased interaction with Darcy, who begins to admire her wit and spirit despite his initial reservations.\n*   **Collins\u2019 Proposal:** Mr. Collins, the heir to the Bennet estate, proposes to Elizabeth, who firmly rejects him; he subsequently marries Elizabeth\u2019s friend, Charlotte Lucas, for financial security.\n*   **Darcy\u2019s First Proposal:** Darcy unexpectedly proposes to Elizabeth, citing his love despite her lower social status and family connections; Elizabeth angrily refuses, accusing him of ruining Jane\u2019s happiness and mistreating Wickham.\n*   **The Letter and Realization:** Darcy writes a letter explaining his actions regarding Jane and Wickham, revealing Wickham\u2019s true character as a scoundrel; Elizabeth begins to recognize her own prejudice and Darcy\u2019s integrity.\n*   **Lydia\u2019s Elopement:** The youngest Bennet sister, Lydia, elopes with Wickham, threatening the family\u2019s reputation; Darcy secretly tracks them down and pays off Wickham\u2019s debts to force a marriage, saving the Bennets from scandal.\n*   **Bingley and Jane Reunite:** Bingley returns to Netherfield and, encouraged by Darcy, proposes to Jane, who accepts, restoring the connection between the two families.\n*   **Darcy\u2019s Second Proposal:** Darcy proposes to Elizabeth again, this time with humility and respect; Elizabeth, having overcome her prejudice",
+  "```bash\n#!/bin/bash\n\n# Directory to watch\nWATCH_DIR=\"${1:-/path/to/watch}\"\n# Remote host and destination\nREMOTE_HOST=\"${2:-user@remotehost}\"\nREMOTE_DIR=\"${3:-/path/to/remote/dest}\"\n# Log file\nLOG_FILE=\"${4:-/var/log/rsync_watch.log}\"\n\n# Ensure log directory exists\nmkdir -p \"$(dirname \"$LOG_FILE\")\"\n\n# Function to log messages\nlog() {\n    echo \"$(date '+%Y-%m-%d %H:%M:%S') - $1\" | tee -a \"$LOG_FILE\"\n}\n\n# Validate arguments\nif [ -z \"$WATCH_DIR\" ] || [ -z \"$REMOTE_HOST\" ] || [ -z \"$REMOTE_DIR\" ]; then\n    log \"ERROR: Missing required arguments. Usage: $0 <watch_dir> <remote_host> <remote_dir> [log_file]\"\n    exit 1\nfi\n\nif [ ! -d \"$WATCH_DIR\" ]; then\n    log \"ERROR: Watch directory '$WATCH_DIR' does not exist.\"\n    exit 1\nfi\n\nlog \"Starting rsync watcher for directory: $WATCH_DIR\"\nlog \"Remote destination: $REMOTE_HOST:$REMOTE_DIR\"\nlog \"Log file: $LOG_FILE\"\n\n# Use inotifywait to watch for new files and directories\n# -m: monitor mode (keep running)\n# -e: events to watch for (close_write, moved_to, create)\n# -r: recursive\n# --format: custom output format\ninotifywait -m -r -e close_write -e moved_to -e create --format '%w%f' \"$WATCH_DIR\" | while read -r filepath; do\n    # Skip if the file is a directory\n    if [ -d \"$filepath\" ]; then\n        continue\n    fi\n\n    # Calculate relative path from WATCH_DIR\n    rel_path=\"${filepath#$WATCH_DIR/}\"\n\n    # Ensure remote directory structure exists\n    remote_parent_dir=\"$(dirname \"$rel_path\")\"\n    if [ \"$remote_parent_dir\" != \".\" ]; then\n        ssh \"$REMOTE_HOST\" \"mkdir -p '$REMOTE_DIR/$remote_parent_dir'\" 2>> \"$LOG_FILE\"\n    fi\n\n    # Perform rsync for the single file\n    rsync -avz --progress \"$filepath\" \"$REMOTE_HOST:$REMOTE_DIR/$rel_path\" >> \"$LOG_FILE\"",
+  "To analyze the tradeoffs between **NVFP4 W4A4** and **W4A16** quantization for Mixture-of-Experts (MoE) inference, we must first clarify the terminology and then examine the architectural, computational, and accuracy implications.\n\n### Clarification of Terms\n- **NVFP4**: NVIDIA\u2019s 4-bit floating-point format (introduced with Blackwell architecture). It uses a 1-bit sign, 2-bit exponent, and 1-bit mantissa (with implicit leading bit), offering better dynamic range than INT4.\n- **W4A4**: Weights quantized to 4-bit, Activations quantized to 4-bit.\n- **W4A16**: Weights quantized to 4-bit, Activations kept in 16-bit (FP16/BF16).\n- **MoE Inference**: Involves sparse expert selection, where only a subset of experts is activated per token. This creates unique memory bandwidth and compute utilization challenges.\n\n---\n\n## Key Tradeoffs\n\n### 1. Memory Bandwidth vs. Compute Intensity\nMoE inference is often **memory-bandwidth-bound** during the expert loading phase, especially when experts are offloaded to CPU or secondary storage.\n\n| Aspect | W4A4 (NVFP4) | W4A16 |\n|--------|--------------|-------|\n| **Weight Memory** | ~4 bits/param | ~4 bits/param |\n| **Activation Memory** | ~4 bits/activation | ~16 bits/activation |\n| **Total Memory Footprint** | **Lowest** | Higher (due to activations) |\n| **Bandwidth Pressure** | **Lowest** | Moderate |\n\n- **W4A4 Advantage**: Reduces activation memory traffic by 4x compared to W4A16. This is critical for MoE because:\n  - Activations are passed between layers and to expert routers.\n  - Lower activation bandwidth reduces pressure on HBM (High Bandwidth Memory) and inter-GPU communication (NVLink).\n- **W4A16 Disadvantage**: Activations remain in FP16/BF16, increasing memory traffic for intermediate tensors, which can bottleneck inference if the model is not compute-bound.\n\n### 2. Compute Throughput (FLOPS)\nModern GPUs (Hopper, Blackwell) have dedicated tensor cores for",
+  "**French Translation:**\nLe phare maintient sa lumi\u00e8re m\u00eame lorsqu\u2019aucun navire ne passe.\n\n**Back-Translation into English:**\nThe lighthouse maintains its light even when no ship passes.",
+  "To prove that $\\sqrt{2}$ is irrational, we will use a method called **proof by contradiction**.\n\n### Step 1: Assumption\nAssume the opposite of what we want to prove. That is, assume that $\\sqrt{2}$ is **rational**.\n\nBy definition, a rational number can be expressed as a fraction $\\frac{a}{b}$, where:\n1. $a$ and $b$ are integers.\n2. $b \\neq 0$.\n3. The fraction $\\frac{a}{b}$ is in **lowest terms** (i.e., $a$ and $b$ share no common factors other than 1; they are coprime).\n\nSo, we write:\n$$ \\sqrt{2} = \\frac{a}{b} $$\n\n### Step 2: Algebraic Manipulation\nSquare both sides of the equation to eliminate the square root:\n$$ 2 = \\frac{a^2}{b^2} $$\n\nMultiply both sides by $b^2$:\n$$ 2b^2 = a^2 $$\n\n### Step 3: Analyze Parity of $a$\nFrom the equation $a^2 = 2b^2$, we can see that $a^2$ is equal to 2 times an integer ($b^2$). Therefore, $a^2$ is an **even** number.\n\nIf the square of an integer is even, the integer itself must be even. (Proof: If $a$ were odd, $a = 2k+1$, then $a^2 = 4k^2 + 4k + 1 = 2(2k^2+2k) + 1$, which is odd. Thus, $a$ cannot be odd).\n\nTherefore, $a$ is even. We can write $a$ as:\n$$ a = 2k $$\nfor some integer $k$.\n\n### Step 4: Substitute and Analyze Parity of $b$\nSubstitute $a = 2k$ back into the equation $2b^2 = a^2$:\n$$ 2b^2 = (2k)^2 $$\n$$ 2b^2 = 4k^2 $$\n\nDivide both sides by 2:\n$$ b^2 = 2k^2 $$\n\nFrom this equation, we see that $b^"
+ ],
+ "speed": [
+  {
+   "prompt_tokens": 32,
+   "mode": "greedy",
+   "completion_tokens": 1024,
+   "ttft": 0.6802957057952881,
+   "prefill_tps": 47.03836835570048,
+   "decode_tps": 27.885348047247128,
+   "mean_accept_len": 2.386946386946387,
+   "draft_accept_rate": 0.46231546231546233
+  },
+  {
+   "prompt_tokens": 32,
+   "mode": "greedy",
+   "completion_tokens": 1024,
+   "ttft": 0.19609975814819336,
+   "prefill_tps": 163.18225122856845,
+   "decode_tps": 27.09117454921809,
+   "mean_accept_len": 2.327272727272727,
+   "draft_accept_rate": 0.44242424242424244
+  },
+  {
+   "prompt_tokens": 32,
+   "mode": "sampled",
+   "completion_tokens": 1024,
+   "ttft": 0.20075201988220215,
+   "prefill_tps": 159.40063775585946,
+   "decode_tps": 23.750110292192346,
+   "mean_accept_len": 2.033797216699801,
+   "draft_accept_rate": 0.3445990722332671
+  },
+  {
+   "prompt_tokens": 32,
+   "mode": "sampled",
+   "completion_tokens": 1024,
+   "ttft": 0.16460633277893066,
+   "prefill_tps": 194.40321316784687,
+   "decode_tps": 24.94529312441641,
+   "mean_accept_len": 2.137787056367432,
+   "draft_accept_rate": 0.3792623521224774
+  },
+  {
+   "prompt_tokens": 30021,
+   "mode": "greedy",
+   "completion_tokens": 1024,
+   "ttft": 25.493009567260742,
+   "prefill_tps": 1177.6169432170263,
+   "decode_tps": 26.706033970341316,
+   "mean_accept_len": 2.3011235955056177,
+   "draft_accept_rate": 0.4337078651685393
+  },
+  {
+   "prompt_tokens": 30021,
+   "mode": "greedy",
+   "completion_tokens": 1024,
+   "ttft": 14.729573488235474,
+   "prefill_tps": 2038.1445548289505,
+   "decode_tps": 28.175027672545387,
+   "mean_accept_len": 2.3735498839907194,
+   "draft_accept_rate": 0.45784996133023975
+  },
+  {
+   "prompt_tokens": 30021,
+   "mode": "sampled",
+   "completion_tokens": 1024,
+   "ttft": 14.658591985702515,
+   "prefill_tps": 2048.013890371016,
+   "decode_tps": 22.952213701667723,
+   "mean_accept_len": 1.9430740037950665,
+   "draft_accept_rate": 0.3143580012650221
+  },
+  {
+   "prompt_tokens": 30021,
+   "mode": "sampled",
+   "completion_tokens": 1024,
+   "ttft": 14.655302047729492,
+   "prefill_tps": 2048.4736447073824,
+   "decode_tps": 21.908979646471664,
+   "mean_accept_len": 1.8566243194192378,
+   "draft_accept_rate": 0.28554143980641256
+  }
+ ]
+}

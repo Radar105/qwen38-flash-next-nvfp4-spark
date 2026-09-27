@@ -28,9 +28,9 @@
     "author_url": "https://github.com/Navjot10",
     "url": "https://github.com/vllm-project/vllm/pull/55390",
     "head_sha": "28bc017bbe359f4c17793ee8a103c5d623c8f75f",
-    "state": "open",
-    "merged_at": null,
-    "carried": "local backport in the complete patch"
+    "state": "closed",
+    "merged_at": "2026-09-22T00:31:26Z",
+    "carried": "in the pinned base"
   },
   {
     "number": 56661,
@@ -63,6 +63,72 @@
     "head_sha": "288fec12f5c645dba6bd5593ebf8b2d3ec586e06",
     "state": "closed",
     "merged_at": "2026-09-05T14:02:20Z",
+    "carried": "in the pinned base"
+  },
+  {
+    "number": 57318,
+    "title": "[Kernel][GDN] Use flashinfer bf16 mm for the GDN gate projection",
+    "author": "schopde-nvidia",
+    "author_url": "https://github.com/schopde-nvidia",
+    "url": "https://github.com/vllm-project/vllm/pull/57318",
+    "head_sha": "7850ba025e2cc4510d83b53303c023b8b5010f98",
+    "state": "open",
+    "merged_at": null,
+    "carried": "local backport in the complete patch"
+  },
+  {
+    "number": 55122,
+    "title": "[Kernel] persistent_topk: deterministic select, faster than the exact-topk workaround",
+    "author": "jschmied",
+    "author_url": "https://github.com/jschmied",
+    "url": "https://github.com/vllm-project/vllm/pull/55122",
+    "head_sha": "b2312b2de793ba12ac5822286e832e0ea332e9e0",
+    "state": "open",
+    "merged_at": null,
+    "carried": "local backport in the complete patch"
+  },
+  {
+    "number": 50021,
+    "title": "[Bugfix] Bound accepted-token state lookups in GDN/KDA spec decode",
+    "author": "amittell",
+    "author_url": "https://github.com/amittell",
+    "url": "https://github.com/vllm-project/vllm/pull/50021",
+    "head_sha": "71d7c782ca4230b556ced08f78fcac865b64a15d",
+    "state": "open",
+    "merged_at": null,
+    "carried": "local backport in the complete patch"
+  },
+  {
+    "number": 56724,
+    "title": "[Spec Decode] Draft within the requests' top-k / top-p support",
+    "author": "gf239",
+    "author_url": "https://github.com/gf239",
+    "url": "https://github.com/vllm-project/vllm/pull/56724",
+    "head_sha": "49354ac230b042b21d662da6a55c545c17590c17",
+    "state": "open",
+    "merged_at": null,
+    "carried": "local backport in the complete patch, context-adapted"
+  },
+  {
+    "number": 58434,
+    "title": "[Bugfix][MRV2] Treat padded prompt tails as spec-decode rows for hybrid models",
+    "author": "njhill",
+    "author_url": "https://github.com/njhill",
+    "url": "https://github.com/vllm-project/vllm/pull/58434",
+    "head_sha": "15753f3039d71c6d70cb96075581ab160ee4a190",
+    "state": "closed",
+    "merged_at": "2026-09-25T01:29:54Z",
+    "carried": "in the pinned base"
+  },
+  {
+    "number": 58368,
+    "title": "[Bugfix][Mamba] Restore prompt-tail prefix-cache hits with MTP",
+    "author": "netanel-haber",
+    "author_url": "https://github.com/netanel-haber",
+    "url": "https://github.com/vllm-project/vllm/pull/58368",
+    "head_sha": "7849f13b11d79e297e04a7ea41a16d4100cf713f",
+    "state": "closed",
+    "merged_at": "2026-09-24T23:46:43Z",
     "carried": "in the pinned base"
   }
 ]

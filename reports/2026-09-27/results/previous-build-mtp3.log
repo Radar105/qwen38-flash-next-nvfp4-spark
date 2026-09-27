@@ -1,0 +1,13 @@
+prose-1024 {"mean_nll": [0.31730405685310276, 0.307921636640195, 0.30262288654778674], "n": 1023, "max_abs_lp_diff_between_reps": [1.9065113067626953, 1.402766227722168], "seconds": [0.5647389888763428, 0.5624809265136719, 0.5600571632385254]}
+prose-4096 {"mean_nll": [0.25593061016763413, 0.24586342497725674, 0.24907600495604745], "n": 4095, "max_abs_lp_diff_between_reps": [2.376045733690262, 4.907885640859604], "seconds": [4.88264536857605, 2.133150100708008, 2.1105995178222656]}
+prose-32768 {"mean_nll": [0.08572376678648215, 0.08511802715268518, 0.08427042663436043], "n": 32767, "max_abs_lp_diff_between_reps": [5.349749743938446, 3.849066376686096], "seconds": [32.56907820701599, 19.252074003219604, 17.064529180526733]}
+prose-131072 {"mean_nll": [0.04521678355940969, 0.04555656921388556, 0.04544226905971891], "n": 131071, "max_abs_lp_diff_between_reps": [5.108797073364258, 4.21680212020874], "seconds": [134.15528964996338, 137.0034008026123, 127.97431945800781]}
+code-1024 {"mean_nll": [0.5504703245192648, 0.5482013090146468, 0.5476761617183132], "n": 1023, "max_abs_lp_diff_between_reps": [1.431044578552246, 1.3454465866088867], "seconds": [1.8768606185913086, 0.7514438629150391, 0.6563465595245361]}
+code-4096 {"mean_nll": [0.6473506902257119, 0.6502767854460304, 0.6493340379450107], "n": 4095, "max_abs_lp_diff_between_reps": [3.375288248062134, 2.727766990661621], "seconds": [3.5280039310455322, 2.592435836791992, 2.222470998764038]}
+gsm off 97 / 100 877s
+greedy ['fb1a48d7', 'e8fddd02', 'cec9ee15', 'd93edc04', '1b8aa815', '6c6509e6', 'fb838c4e', '8d87f060']
+speed {"prompt_tokens": 32, "mode": "greedy", "completion_tokens": 1024, "ttft": 0.183, "prefill_tps": 174.576, "decode_tps": 28.005, "mean_accept_len": 2.401, "draft_accept_rate": 0.467}
+speed {"prompt_tokens": 32, "mode": "greedy", "completion_tokens": 1024, "ttft": 0.163, "prefill_tps": 196.518, "decode_tps": 27.908, "mean_accept_len": 2.381, "draft_accept_rate": 0.46}
+speed {"prompt_tokens": 32, "mode": "sampled", "completion_tokens": 1024, "ttft": 0.2, "prefill_tps": 159.68, "decode_tps": 23.563, "mean_accept_len": 2.032, "draft_accept_rate": 0.344}
+speed {"prompt_tokens": 32, "mode": "sampled", "completion_tokens": 1024, "ttft": 0.165, "prefill_tps": 194.182, "decode_tps": 25.568, "mean_accept_len": 2.177, "draft_accept_rate": 0.392}
+speed {"prompt_tokens": 30021, "mode": "greedy", "completion_tokens": 1024, "ttft": 28.102, "prefill_tps": 1068.296, "decode_tps": 27.282, "mean_accept_len": 2.304, "draft_accept_rate": 0.435}

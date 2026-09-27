@@ -3,6 +3,7 @@
   "personal_paths_and_hostnames_removed": true,
   "credential_pattern_check": true,
   "authored_docs_and_charts_no_em_dashes": true,
-  "scanned_files": 129,
-  "relative_link_issues": []
+  "scanned_files": 154,
+  "relative_link_issues": [],
+  "recorded_date": "2026-09-27"
 }
